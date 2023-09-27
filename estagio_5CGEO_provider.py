@@ -32,12 +32,12 @@ __copyright__ = '(C) 2023 by Estagiarios 5 CGEO'
 __revision__ = '$Format:%H$'
 
 from qgis.core import QgsProcessingProvider
-from .algorithms.Projeto1.solucao import Projeto1Solucao
-from .algorithms.Projeto2.solucao import Projeto2Solucao
-from .algorithms.Projeto3.solucao import Projeto3Solucao
-from .algorithms.Projeto4.solucao import Projeto4Solucao
-from .algorithms.Projeto3.solucao import Projeto3Solucao
-from .algorithms.Projeto4.solucao import Projeto4Solucao
+from .algorithms.proj1_identifica_poligonos_vizinhos_sem_mudanca_atributo import Projeto1Solucao
+from .algorithms.proj2_identifica_mudanca_atributo_linha import Projeto2Solucao
+from .algorithms.proj3_suavizar_linhas import Projeto3Solucao
+from .algorithms.proj4_fechar_linhas import Projeto4Solucao
+from .algorithms.proj5_aparar_linhas import Projeto4Solucao
+from .algorithms.proj6_expandir_linhas import Projeto4Solucao
 
 
 class ProgramacaoAplicadaGrupo4Provider(QgsProcessingProvider):
@@ -60,16 +60,11 @@ class ProgramacaoAplicadaGrupo4Provider(QgsProcessingProvider):
         Loads all algorithms belonging to this provider.
         """
         self.addAlgorithm(Projeto1Solucao())
-        self.addAlgorithm(Projeto1SolucaoComplementar())
         self.addAlgorithm(Projeto2Solucao())
-        self.addAlgorithm(Projeto2SolucaoComplementar())
         self.addAlgorithm(Projeto3Solucao())
-        self.addAlgorithm(Projeto3SolucaoComplementar())
         self.addAlgorithm(Projeto4Solucao())
-        self.addAlgorithm(Projeto4SolucaoComplementar())
-
-        # add additional algorithms here
-        # self.addAlgorithm(MyOtherAlgorithm())
+        self.addAlgorithm(Projeto3Solucao())
+        self.addAlgorithm(Projeto4Solucao())
 
     def id(self):
         """
