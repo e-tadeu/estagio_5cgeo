@@ -291,7 +291,7 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
         contain lowercase alphanumeric characters only and no spaces or other
         formatting characters.
         """
-        return 'Projeto 4'
+        return 'Projeto 5'
 
     def tr(self, string):
         return QCoreApplication.translate('Processing', string)
