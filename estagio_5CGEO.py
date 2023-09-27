@@ -36,7 +36,7 @@ import sys
 import inspect
 
 from qgis.core import QgsProcessingAlgorithm, QgsApplication
-from .estagio_5CGEO_provider import ProgramacaoAplicadaGrupo4Provider
+from .estagio_5CGEO_provider import Estagio5CGEOProvider
 
 cmd_folder = os.path.split(inspect.getfile(inspect.currentframe()))[0]
 
@@ -44,14 +44,14 @@ if cmd_folder not in sys.path:
     sys.path.insert(0, cmd_folder)
 
 
-class ProgramacaoAplicadaGrupo4Plugin(object):
+class Estagio5CGEOPlugin(object):
 
     def __init__(self):
         self.provider = None
 
     def initProcessing(self):
         """Init Processing provider for QGIS >= 3.8."""
-        self.provider = ProgramacaoAplicadaGrupo4Provider()
+        self.provider = Estagio5CGEOProvider()
         QgsApplication.processingRegistry().addProvider(self.provider)
 
     def initGui(self):

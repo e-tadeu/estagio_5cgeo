@@ -40,7 +40,7 @@ from .algorithms.proj5_aparar_linhas import Projeto5Solucao
 from .algorithms.proj6_expandir_linhas import Projeto6Solucao
 
 
-class ProgramacaoAplicadaGrupo4Provider(QgsProcessingProvider):
+class Estagio5CGEOProvider(QgsProcessingProvider):
 
     def __init__(self):
         """
@@ -72,7 +72,7 @@ class ProgramacaoAplicadaGrupo4Provider(QgsProcessingProvider):
         string should be a unique, short, character only string, eg "qgis" or
         "gdal". This string should not be localised.
         """
-        return 'ProgramacaoAplicadaGrupo4'
+        return 'Estagio5CGEO'
 
     def name(self):
         """
@@ -81,7 +81,7 @@ class ProgramacaoAplicadaGrupo4Provider(QgsProcessingProvider):
 
         This string should be short (e.g. "Lastools") and localised.
         """
-        return self.tr('ProgramacaoAplicadaGrupo4')
+        return self.tr('Estagio5CGEO')
 
     def icon(self):
         """
