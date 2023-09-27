@@ -33,13 +33,11 @@ __revision__ = '$Format:%H$'
 
 from qgis.core import QgsProcessingProvider
 from .algorithms.Projeto1.solucao import Projeto1Solucao
-from .algorithms.Projeto1.solucao_complementar import Projeto1SolucaoComplementar
 from .algorithms.Projeto2.solucao import Projeto2Solucao
-from .algorithms.Projeto2.solucao_complementar import Projeto2SolucaoComplementar
 from .algorithms.Projeto3.solucao import Projeto3Solucao
-from .algorithms.Projeto3.solucao_complementar import Projeto3SolucaoComplementar
 from .algorithms.Projeto4.solucao import Projeto4Solucao
-from .algorithms.Projeto4.solucao_complementar import Projeto4SolucaoComplementar
+from .algorithms.Projeto3.solucao import Projeto3Solucao
+from .algorithms.Projeto4.solucao import Projeto4Solucao
 
 
 class ProgramacaoAplicadaGrupo4Provider(QgsProcessingProvider):
