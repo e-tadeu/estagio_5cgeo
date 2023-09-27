@@ -37,5 +37,5 @@ def classFactory(iface):  # pylint: disable=invalid-name
     :type iface: QgsInterface
     """
     #
-    from .programacao_aplicada_grupo_4 import ProgramacaoAplicadaGrupo4Plugin
+    from .estagio_5CGEO import ProgramacaoAplicadaGrupo4Plugin
     return ProgramacaoAplicadaGrupo4Plugin()
