@@ -36,5 +36,5 @@ def classFactory(iface):  # pylint: disable=invalid-name
     :type iface: QgsInterface
     """
     #
-    from .estagio_5CGEO import estagio_5CGEOPlugin
-    return estagio_5CGEOPlugin()
+    from .estagio_5CGEO import Estagio5CGEOPlugin
+    return Estagio5CGEOPlugin()
