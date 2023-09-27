@@ -249,4 +249,4 @@ class Projeto1Solucao(QgsProcessingAlgorithm):
         return QCoreApplication.translate('Processing', string)
 
     def createInstance(self):
-        return Projeto1Solucaocomplementar()
+        return Projeto1Solucao()
