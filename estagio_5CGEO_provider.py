@@ -36,8 +36,8 @@ from .algorithms.proj1_identifica_poligonos_vizinhos_sem_mudanca_atributo import
 from .algorithms.proj2_identifica_mudanca_atributo_linha import Projeto2Solucao
 from .algorithms.proj3_suavizar_linhas import Projeto3Solucao
 from .algorithms.proj4_fechar_linhas import Projeto4Solucao
-from .algorithms.proj5_aparar_linhas import Projeto4Solucao
-from .algorithms.proj6_expandir_linhas import Projeto4Solucao
+from .algorithms.proj5_aparar_linhas import Projeto5Solucao
+from .algorithms.proj6_expandir_linhas import Projeto6Solucao
 
 
 class ProgramacaoAplicadaGrupo4Provider(QgsProcessingProvider):
@@ -63,8 +63,8 @@ class ProgramacaoAplicadaGrupo4Provider(QgsProcessingProvider):
         self.addAlgorithm(Projeto2Solucao())
         self.addAlgorithm(Projeto3Solucao())
         self.addAlgorithm(Projeto4Solucao())
-        self.addAlgorithm(Projeto3Solucao())
-        self.addAlgorithm(Projeto4Solucao())
+        self.addAlgorithm(Projeto5Solucao())
+        self.addAlgorithm(Projeto6Solucao())
 
     def id(self):
         """

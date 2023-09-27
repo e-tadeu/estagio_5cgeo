@@ -69,7 +69,7 @@ import processing
 from PyQt5.QtGui import QColor
 
 
-class Projeto4Solucao(QgsProcessingAlgorithm):
+class Projeto6Solucao(QgsProcessingAlgorithm):
     """
     
     Este algoritmo realiza a revisão de ligação entre produtos.
