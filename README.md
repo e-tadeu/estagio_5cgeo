@@ -1,11 +1,14 @@
 # Estágio 5º CGEO
 Repositório dedicado à realização de atividades no 5º Centro de Geoinformação, com o objetivo de aumentar a eficiência e automatizar algumas etapas do processo de Produção Cartográfica
 
-## Atividade 1: Expandir linhas
+## Projeto 1: Identificar imutabilidade de atributos em polígonos vizinhos
 
-Algoritmo para expandir linhas
+## Projeto 2: Identificar mudança de atributos em linha
 
-## Atividade 2: Suavizar linhas
-## Atividade 3: Aparar linhas
-## Atividade 4: Fechar linhas
-## Atividade 5: Imutabilidade de atributos
+## Projeto 3: Suavizar linhas
+
+## Projeto 4: Fechar linhas
+
+## Projeto 5: Aparar linhas
+
+## Projeto 6: Expandir linhas
