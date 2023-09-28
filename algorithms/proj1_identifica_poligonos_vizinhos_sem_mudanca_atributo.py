@@ -219,7 +219,7 @@ class Projeto1Solucao(QgsProcessingAlgorithm):
         lowercase alphanumeric characters only and no spaces or other
         formatting characters.
         """
-        return 'Solução do Projeto 1'
+        return 'Identificar imutabilidade de atributos em polígonos vizinhos'
 
     def displayName(self):
         """

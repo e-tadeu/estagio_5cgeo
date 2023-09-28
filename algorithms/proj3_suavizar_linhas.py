@@ -203,7 +203,7 @@ class Projeto3Solucao(QgsProcessingAlgorithm):
         lowercase alphanumeric characters only and no spaces or other
         formatting characters.
         """
-        return 'Solução do Projeto 3'
+        return 'Suavizar linhas'
 
     def displayName(self):
         """
