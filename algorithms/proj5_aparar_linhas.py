@@ -80,38 +80,17 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
     # calling from the QGIS console.
 
     # Camadas de input
-    CURVAS = 'CURVAS'
-    DRENAGEM = 'DRENAGEM'
-    VIAS = 'VIAS'
-    ENERGIA = 'ENERGIA'
-    DISTANCIA = 'DISTANCIA'
-    MOLDURA = 'MOLDURA'
+    INPUT = 'INPUT'
 
     # Camadas de output
     OUTPUT = 'OUTPUT'
 
     def initAlgorithm(self, config):
 
-        self.addParameter(QgsProcessingParameterVectorLayer(self.DRENAGEM, self.tr('Insira a camada de drenagem'), 
+        self.addParameter(QgsProcessingParameterVectorLayer(self.INPUT, self.tr('Insira a camada de linha'), 
                                                             types=[QgsProcessing.TypeVectorLine], 
                                                             defaultValue=None))
-        
-        self.addParameter(QgsProcessingParameterVectorLayer(self.VIAS, self.tr('Insira a camada de rodovias'), 
-                                                            types=[QgsProcessing.TypeVectorLine], 
-                                                            defaultValue=None))
-
-        self.addParameter(QgsProcessingParameterVectorLayer(self.ENERGIA, self.tr('Insira a camada de linhas de energia'), 
-                                                            types=[QgsProcessing.TypeVectorLine], 
-                                                            defaultValue=None))
-
-        self.addParameter(QgsProcessingParameterVectorLayer(self.CURVAS, self.tr('Insira as curvas de nível'), 
-                                                            types=[QgsProcessing.TypeVectorLine], 
-                                                            defaultValue=None))
-        
-        self.addParameter(QgsProcessingParameterVectorLayer(self.MOLDURA, self.tr('Insira a moldura'), 
-                                                            types=[QgsProcessing.TypeVectorPolygon], 
-                                                            defaultValue=None))
-                        
+                              
         self.addParameter(QgsProcessingParameterNumber(self.DISTANCIA,
                                                        self.tr('Insira a distância de busca'),
                                                        defaultValue=0.01,
