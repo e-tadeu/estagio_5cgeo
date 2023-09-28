@@ -233,17 +233,17 @@ class Projeto1Solucao(QgsProcessingAlgorithm):
         Returns the name of the group this algorithm belongs to. This string
         should be localised.
         """
-        return self.tr(self.groupId())
+        return 'Identificar imutabilidade de atributos em polígonos vizinhos'
 
-    def groupId(self):
-        """
+    """def groupId(self):
+        
         Returns the unique ID of the group this algorithm belongs to. This
         string should be fixed for the algorithm, and must not be localised.
         The group id should be unique within each provider. Group id should
         contain lowercase alphanumeric characters only and no spaces or other
         formatting characters.
-        """
-        return 'Projeto 1'
+        
+        return 'Projeto 1'"""
 
     def tr(self, string):
         return QCoreApplication.translate('Processing', string)
