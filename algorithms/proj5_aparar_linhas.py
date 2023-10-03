@@ -53,12 +53,14 @@ from qgis.core import (
     QgsWkbTypes,
 )
 
-from ...algRunner import AlgRunner
+from algRunner import AlgRunner
 #from .validationAlgorithm import ValidationAlgorithm
 
 
 class ApararLinhas(QgsProcessingAlgorithm):
+    INPUT_POINTS = "INPUT_POINTS"
     INPUT_LINES = "INPUT_LINES"
+    INPUT_POLYGONS = "INPUT_POLYGONS"
     SELECTED = "SELECTED"
     SEARCH_RADIUS = "SEARCH_RADIUS"
     GEOGRAPHIC_BOUNDARY = "GEOGRAPHIC_BOUNDARY"
@@ -69,6 +71,14 @@ class ApararLinhas(QgsProcessingAlgorithm):
         """
         self.addParameter(
             QgsProcessingParameterMultipleLayers(
+                self.INPUT_POINTS,
+                self.tr("Point Layers"),
+                QgsProcessing.TypeVectorPoint,
+                optional=True,
+            )
+        )
+        self.addParameter(
+            QgsProcessingParameterMultipleLayers(
                 self.INPUT_LINES,
                 self.tr("Linestring Layers"),
                 QgsProcessing.TypeVectorLine,
@@ -76,10 +86,20 @@ class ApararLinhas(QgsProcessingAlgorithm):
             )
         )
         self.addParameter(
+            QgsProcessingParameterMultipleLayers(
+                self.INPUT_POLYGONS,
+                self.tr("Polygon Layers"),
+                QgsProcessing.TypeVectorPolygon,
+                optional=True,
+            )
+        )
+
+        self.addParameter(
             QgsProcessingParameterBoolean(
                 self.SELECTED, self.tr("Process only selected features")
             )
         )
+
         param = QgsProcessingParameterDistance(
             self.SEARCH_RADIUS, self.tr("Search Radius"), defaultValue=1.0
         )
@@ -100,28 +120,33 @@ class ApararLinhas(QgsProcessingAlgorithm):
         Here is where the processing itself takes place.
         """
         algRunner = AlgRunner()
+        inputPointLyrList = self.parameterAsLayerList(
+            parameters, self.INPUT_POINTS, context
+        )
         inputLineLyrList = self.parameterAsLayerList(
             parameters, self.INPUT_LINES, context
         )
         inputPolygonLyrList = self.parameterAsLayerList(
             parameters, self.INPUT_POLYGONS, context
         )
-        if inputLineLyrList + inputPolygonLyrList == []:
-            raise QgsProcessingException(self.tr("Select at least one layer"))
-        onlySelected = self.parameterAsBool(parameters, self.SELECTED, context)
         searchRadius = self.parameterAsDouble(parameters, self.SEARCH_RADIUS, context)
         geographicBoundary = self.parameterAsVectorLayer(
             parameters, self.GEOGRAPHIC_BOUNDARY, context
         )
-        lyrList = list(chain(inputLineLyrList, inputPolygonLyrList))
+        if inputPointLyrList + inputLineLyrList + inputPolygonLyrList == []:
+            raise QgsProcessingException(self.tr("Select at least one layer"))
+        onlySelected = self.parameterAsBool(parameters, self.SELECTED, context)
+        lyrList = list(chain(inputPointLyrList, inputLineLyrList, inputPolygonLyrList))
         nLyrs = len(lyrList)
-        multiStepFeedback = QgsProcessingMultiStepFeedback(nLyrs + 4, feedback)
+        multiStepFeedback = QgsProcessingMultiStepFeedback(
+            nLyrs + 4 + 2 * (geographicBoundary is not None), feedback
+        )
         multiStepFeedback.setCurrentStep(0)
-        flagsLyr = algRunner.runIdentifyUnsharedVertexOnSharedEdgesAlgorithm(
+        flagsLyr = algRunner.runIdentifyUnsharedVertexOnIntersectionsAlgorithm(
+            pointLayerList=inputPointLyrList,
             lineLayerList=inputLineLyrList,
             polygonLayerList=inputPolygonLyrList,
             onlySelected=onlySelected,
-            searchRadius=searchRadius,
             context=context,
             feedback=multiStepFeedback,
             is_child_algorithm=True,
@@ -135,22 +160,11 @@ class ApararLinhas(QgsProcessingAlgorithm):
                 feedback=multiStepFeedback,
                 is_child_algorithm=True,
             )
-        flagsLyr = algRunner.runSnapLayerOnLayer(
-            inputLayer=flagsLyr,
-            referenceLayer=flagsLyr,
-            tol=searchRadius,
-            context=context,
-            onlySelected=onlySelected,
-            feedback=multiStepFeedback,
-            behavior=6,
-            buildCache=False,
-            is_child_algorithm=True,
-        )
         for current, lyr in enumerate(lyrList):
             if feedback.isCanceled():
                 break
             multiStepFeedback.setCurrentStep(
-                current + 2 + (geographicBoundary is not None)
+                current + 1 + (geographicBoundary is not None)
             )
             algRunner.runSnapLayerOnLayer(
                 inputLayer=lyr,
@@ -160,17 +174,18 @@ class ApararLinhas(QgsProcessingAlgorithm):
                 onlySelected=onlySelected,
                 feedback=multiStepFeedback,
                 behavior=1,
+                buildCache=False,
                 is_child_algorithm=True,
             )
         currentStep = current + 1 + (geographicBoundary is not None)
         multiStepFeedback.setCurrentStep(currentStep)
-        newFlagsLyr = algRunner.runIdentifyUnsharedVertexOnSharedEdgesAlgorithm(
+        newFlagsLyr = algRunner.runIdentifyUnsharedVertexOnIntersectionsAlgorithm(
+            pointLayerList=[],
             lineLayerList=inputLineLyrList,
             polygonLayerList=inputPolygonLyrList,
             onlySelected=onlySelected,
-            searchRadius=searchRadius,
             context=context,
-            feedback=multiStepFeedback
+            feedback=multiStepFeedback,
         )
         currentStep += 1
         if geographicBoundary is not None:
@@ -181,16 +196,16 @@ class ApararLinhas(QgsProcessingAlgorithm):
             currentStep += 1
         if newFlagsLyr.featureCount() == 0:
             return {}
+
         multiStepFeedback.setCurrentStep(currentStep)
-        currentStep += 1
         algRunner.runCreateSpatialIndex(newFlagsLyr, context, multiStepFeedback)
-        multiStepFeedback.setCurrentStep(currentStep)
         currentStep += 1
+        multiStepFeedback.setCurrentStep(currentStep)
         LayerHandler().addVertexesToLayers(
             vertexLyr=newFlagsLyr,
             layerList=list(chain(inputLineLyrList, inputPolygonLyrList)),
             searchRadius=searchRadius,
-            feedback=multiStepFeedback
+            feedback=multiStepFeedback,
         )
 
         return {}
