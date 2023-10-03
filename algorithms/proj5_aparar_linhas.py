@@ -189,36 +189,34 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
         lowercase alphanumeric characters only and no spaces or other
         formatting characters.
         """
-        return "addunsharedvertexonsharededgesalgorithm"
+        return 'Aparar linhas'
 
     def displayName(self):
         """
         Returns the translated algorithm name, which should be used for any
         user-visible display of the algorithm name.
         """
-        return self.tr("Add Unshared Vertex on Shared Edges")
+        return self.tr(self.name())
 
     def group(self):
         """
         Returns the name of the group this algorithm belongs to. This string
         should be localised.
         """
-        return self.tr("Quality Assurance Tools (Correction Processes)")
+        return 'Aparar linhas'
 
-    def groupId(self):
-        """
+    """def groupId(self):
+        
         Returns the unique ID of the group this algorithm belongs to. This
         string should be fixed for the algorithm, and must not be localised.
         The group id should be unique within each provider. Group id should
         contain lowercase alphanumeric characters only and no spaces or other
         formatting characters.
-        """
-        return "DSGTools: Quality Assurance Tools (Correction Processes)"
+        
+        return 'Projeto 6'"""
 
     def tr(self, string):
-        return QCoreApplication.translate(
-            "AddUnsharedVertexOnSharedEdgesAlgorithm", string
-        )
+        return QCoreApplication.translate('Processing', string)
 
     def createInstance(self):
-        return AddUnsharedVertexOnSharedEdgesAlgorithm()
+        return Projeto5Solucao()
