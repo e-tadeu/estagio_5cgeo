@@ -53,7 +53,7 @@ from qgis.core import (
     QgsWkbTypes,
 )
 
-from algRunner import AlgRunner
+from .algRunner import AlgRunner
 #from .validationAlgorithm import ValidationAlgorithm
 
 
