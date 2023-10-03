@@ -58,10 +58,10 @@ from .algRunner import AlgRunner
 
 
 class Projeto5Solucao(QgsProcessingAlgorithm):
-    INPUT_LINES = "INPUT_LINES"
+    INPUT = "INPUT"
     SELECTED = "SELECTED"
-    SEARCH_RADIUS = "SEARCH_RADIUS"
-    GEOGRAPHIC_BOUNDARY = "GEOGRAPHIC_BOUNDARY"
+    TOLERANCE = "TOLERANCE"
+    OUTPUT = "OUTPUT"
 
     def initAlgorithm(self, config):
         """
@@ -69,10 +69,7 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
         """
         self.addParameter(
             QgsProcessingParameterVectorLayer(
-                self.INPUT_LINES,
-                self.tr("Linestring Layer"),
-                types=[QgsProcessing.TypeVectorLine],
-                #optional=False,
+                self.INPUT, self.tr("Input layer"), [QgsProcessing.TypeVectorLine]
             )
         )
         self.addParameter(
@@ -80,19 +77,18 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
                 self.SELECTED, self.tr("Process only selected features")
             )
         )
-
-        param = QgsProcessingParameterDistance(
-            self.SEARCH_RADIUS, self.tr("Search Radius"), defaultValue=1.0
-        )
-        param.setMetadata({"widget_wrapper": {"decimals": 8}})
-        self.addParameter(param)
-
         self.addParameter(
-            QgsProcessingParameterVectorLayer(
-                self.GEOGRAPHIC_BOUNDARY,
-                self.tr("Geographic Boundary"),
-                [QgsProcessing.TypeVectorPolygon],
-                optional=True,
+            QgsProcessingParameterDistance(
+                self.TOLERANCE,
+                self.tr("Snap radius"),
+                parentParameterName=self.INPUT,
+                minValue=-1.0,
+                defaultValue=1.0,
+            )
+        )
+        self.addOutput(
+            QgsProcessingOutputVectorLayer(
+                self.OUTPUT, self.tr("Original layer with overlayed lines")
             )
         )
 
@@ -100,86 +96,60 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
         """
         Here is where the processing itself takes place.
         """
+        layerHandler = LayerHandler()
         algRunner = AlgRunner()
-        inputLineLyrList = self.parameterAsLayerList(
-            parameters, self.INPUT_LINES, context
-        )
-        searchRadius = self.parameterAsDouble(parameters, self.SEARCH_RADIUS, context)
-        geographicBoundary = self.parameterAsVectorLayer(
-            parameters, self.GEOGRAPHIC_BOUNDARY, context
-        )
-        if inputLineLyrList == []:
-            raise QgsProcessingException(self.tr("Select at least one layer"))
+        inputLyr = self.parameterAsVectorLayer(parameters, self.INPUT, context)
         onlySelected = self.parameterAsBool(parameters, self.SELECTED, context)
-        lyrList = list(chain(inputLineLyrList))
-        nLyrs = len(lyrList)
-        multiStepFeedback = QgsProcessingMultiStepFeedback(
-            nLyrs + 4 + 2 * (geographicBoundary is not None), feedback
-        )
+        tol = self.parameterAsDouble(parameters, self.TOLERANCE, context)
+
+        multiStepFeedback = QgsProcessingMultiStepFeedback(4, feedback)
         multiStepFeedback.setCurrentStep(0)
-        flagsLyr = algRunner.runIdentifyUnsharedVertexOnIntersectionsAlgorithm(
-            lineLayerList=inputLineLyrList,
-            onlySelected=onlySelected,
-            context=context,
-            feedback=multiStepFeedback,
-            is_child_algorithm=True,
-        )
-        if geographicBoundary is not None:
-            multiStepFeedback.setCurrentStep(1)
-            flagsLyr = algRunner.runExtractByLocation(
-                flagsLyr,
-                geographicBoundary,
-                context=context,
-                feedback=multiStepFeedback,
-                is_child_algorithm=True,
+
+        if tol > 0:
+            multiStepFeedback.pushInfo(
+                self.tr("Identifying dangles on {layer}...").format(
+                    layer=inputLyr.name()
+                )
             )
-        for current, lyr in enumerate(lyrList):
-            if feedback.isCanceled():
-                break
-            multiStepFeedback.setCurrentStep(
-                current + 1 + (geographicBoundary is not None)
+            dangleLyr = algRunner.runIdentifyDangles(
+                inputLyr,
+                tol,
+                context,
+                feedback=multiStepFeedback,
+                onlySelected=onlySelected,
+            )
+
+            multiStepFeedback.setCurrentStep(1)
+            layerHandler.filterDangles(dangleLyr, tol, feedback=multiStepFeedback)
+
+            multiStepFeedback.setCurrentStep(2)
+            multiStepFeedback.pushInfo(
+                self.tr("Snapping layer {layer} to dangles...").format(
+                    layer=inputLyr.name()
+                )
             )
             algRunner.runSnapLayerOnLayer(
-                inputLayer=lyr,
-                referenceLayer=flagsLyr,
-                tol=searchRadius,
-                context=context,
-                onlySelected=onlySelected,
+                inputLyr,
+                dangleLyr,
+                tol,
+                context,
                 feedback=multiStepFeedback,
-                behavior=1,
-                buildCache=False,
-                is_child_algorithm=True,
+                onlySelected=onlySelected,
             )
-        currentStep = current + 1 + (geographicBoundary is not None)
-        multiStepFeedback.setCurrentStep(currentStep)
-        newFlagsLyr = algRunner.runIdentifyUnsharedVertexOnIntersectionsAlgorithm(
-            lineLayerList=inputLineLyrList,
+
+        multiStepFeedback.setCurrentStep(3)
+        multiStepFeedback.pushInfo(
+            self.tr("Cleanning layer {layer}...").format(layer=inputLyr.name())
+        )
+        algRunner.runDsgToolsClean(
+            inputLyr,
+            context,
+            snap=tol,
+            feedback=multiStepFeedback,
             onlySelected=onlySelected,
-            context=context,
-            feedback=multiStepFeedback,
-        )
-        currentStep += 1
-        if geographicBoundary is not None:
-            multiStepFeedback.setCurrentStep(currentStep)
-            newFlagsLyr = algRunner.runExtractByLocation(
-                newFlagsLyr, geographicBoundary, context, feedback=multiStepFeedback
-            )
-            currentStep += 1
-        if newFlagsLyr.featureCount() == 0:
-            return {}
-
-        multiStepFeedback.setCurrentStep(currentStep)
-        algRunner.runCreateSpatialIndex(newFlagsLyr, context, multiStepFeedback)
-        currentStep += 1
-        multiStepFeedback.setCurrentStep(currentStep)
-        LayerHandler().addVertexesToLayers(
-            vertexLyr=newFlagsLyr,
-            layerList=list(chain(inputLineLyrList)),
-            searchRadius=searchRadius,
-            feedback=multiStepFeedback,
         )
 
-        return {}
+        return {self.OUTPUT: inputLyr}
 
     def name(self):
         """
