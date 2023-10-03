@@ -57,7 +57,7 @@ from .algRunner import AlgRunner
 #from .validationAlgorithm import ValidationAlgorithm
 
 
-class ApararLinhas(QgsProcessingAlgorithm):
+class Projeto5Solucao(QgsProcessingAlgorithm):
     INPUT_LINES = "INPUT_LINES"
     SELECTED = "SELECTED"
     SEARCH_RADIUS = "SEARCH_RADIUS"
