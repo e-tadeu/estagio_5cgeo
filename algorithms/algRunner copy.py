@@ -1379,7 +1379,9 @@ class AlgRunner:
 
     def runIdentifyUnsharedVertexOnIntersectionsAlgorithm(
         self,
+        pointLayerList,
         lineLayerList,
+        polygonLayerList,
         context,
         onlySelected=False,
         feedback=None,
@@ -1390,7 +1392,9 @@ class AlgRunner:
         output = processing.run(
             "dsgtools:identifyunsharedvertexonintersectionsalgorithm",
             {
+                "INPUT_POINTS": pointLayerList,
                 "INPUT_LINES": lineLayerList,
+                "INPUT_POLYGONS": polygonLayerList,
                 "SELECTED": onlySelected,
                 "FLAGS": outputLyr,
             },
