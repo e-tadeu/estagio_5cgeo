@@ -58,9 +58,7 @@ from algRunner import AlgRunner
 
 
 class ApararLinhas(QgsProcessingAlgorithm):
-    INPUT_POINTS = "INPUT_POINTS"
     INPUT_LINES = "INPUT_LINES"
-    INPUT_POLYGONS = "INPUT_POLYGONS"
     SELECTED = "SELECTED"
     SEARCH_RADIUS = "SEARCH_RADIUS"
     GEOGRAPHIC_BOUNDARY = "GEOGRAPHIC_BOUNDARY"
@@ -71,29 +69,12 @@ class ApararLinhas(QgsProcessingAlgorithm):
         """
         self.addParameter(
             QgsProcessingParameterMultipleLayers(
-                self.INPUT_POINTS,
-                self.tr("Point Layers"),
-                QgsProcessing.TypeVectorPoint,
-                optional=True,
-            )
-        )
-        self.addParameter(
-            QgsProcessingParameterMultipleLayers(
                 self.INPUT_LINES,
                 self.tr("Linestring Layers"),
                 QgsProcessing.TypeVectorLine,
                 optional=True,
             )
         )
-        self.addParameter(
-            QgsProcessingParameterMultipleLayers(
-                self.INPUT_POLYGONS,
-                self.tr("Polygon Layers"),
-                QgsProcessing.TypeVectorPolygon,
-                optional=True,
-            )
-        )
-
         self.addParameter(
             QgsProcessingParameterBoolean(
                 self.SELECTED, self.tr("Process only selected features")
@@ -120,32 +101,24 @@ class ApararLinhas(QgsProcessingAlgorithm):
         Here is where the processing itself takes place.
         """
         algRunner = AlgRunner()
-        inputPointLyrList = self.parameterAsLayerList(
-            parameters, self.INPUT_POINTS, context
-        )
         inputLineLyrList = self.parameterAsLayerList(
             parameters, self.INPUT_LINES, context
-        )
-        inputPolygonLyrList = self.parameterAsLayerList(
-            parameters, self.INPUT_POLYGONS, context
         )
         searchRadius = self.parameterAsDouble(parameters, self.SEARCH_RADIUS, context)
         geographicBoundary = self.parameterAsVectorLayer(
             parameters, self.GEOGRAPHIC_BOUNDARY, context
         )
-        if inputPointLyrList + inputLineLyrList + inputPolygonLyrList == []:
+        if inputLineLyrList == []:
             raise QgsProcessingException(self.tr("Select at least one layer"))
         onlySelected = self.parameterAsBool(parameters, self.SELECTED, context)
-        lyrList = list(chain(inputPointLyrList, inputLineLyrList, inputPolygonLyrList))
+        lyrList = list(chain(inputLineLyrList))
         nLyrs = len(lyrList)
         multiStepFeedback = QgsProcessingMultiStepFeedback(
             nLyrs + 4 + 2 * (geographicBoundary is not None), feedback
         )
         multiStepFeedback.setCurrentStep(0)
         flagsLyr = algRunner.runIdentifyUnsharedVertexOnIntersectionsAlgorithm(
-            pointLayerList=inputPointLyrList,
             lineLayerList=inputLineLyrList,
-            polygonLayerList=inputPolygonLyrList,
             onlySelected=onlySelected,
             context=context,
             feedback=multiStepFeedback,
@@ -180,9 +153,7 @@ class ApararLinhas(QgsProcessingAlgorithm):
         currentStep = current + 1 + (geographicBoundary is not None)
         multiStepFeedback.setCurrentStep(currentStep)
         newFlagsLyr = algRunner.runIdentifyUnsharedVertexOnIntersectionsAlgorithm(
-            pointLayerList=[],
             lineLayerList=inputLineLyrList,
-            polygonLayerList=inputPolygonLyrList,
             onlySelected=onlySelected,
             context=context,
             feedback=multiStepFeedback,
@@ -203,7 +174,7 @@ class ApararLinhas(QgsProcessingAlgorithm):
         multiStepFeedback.setCurrentStep(currentStep)
         LayerHandler().addVertexesToLayers(
             vertexLyr=newFlagsLyr,
-            layerList=list(chain(inputLineLyrList, inputPolygonLyrList)),
+            layerList=list(chain(inputLineLyrList)),
             searchRadius=searchRadius,
             feedback=multiStepFeedback,
         )
