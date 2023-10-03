@@ -68,7 +68,7 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
         Parameter setting.
         """
         self.addParameter(
-            QgsProcessingParameterMultipleLayers(
+            QgsProcessingParameterVectorLayer(
                 self.INPUT_LINES,
                 self.tr("Linestring Layers"),
                 QgsProcessing.TypeVectorLine,
