@@ -54,12 +54,11 @@ from qgis.core import (
 )
 
 from ...algRunner import AlgRunner
-from .validationAlgorithm import ValidationAlgorithm
+#from .validationAlgorithm import ValidationAlgorithm
 
 
-class AddUnsharedVertexOnSharedEdgesAlgorithm(ValidationAlgorithm):
+class ApararLinhas(QgsProcessingAlgorithm):
     INPUT_LINES = "INPUT_LINES"
-    INPUT_POLYGONS = "INPUT_POLYGONS"
     SELECTED = "SELECTED"
     SEARCH_RADIUS = "SEARCH_RADIUS"
     GEOGRAPHIC_BOUNDARY = "GEOGRAPHIC_BOUNDARY"
@@ -76,15 +75,6 @@ class AddUnsharedVertexOnSharedEdgesAlgorithm(ValidationAlgorithm):
                 optional=True,
             )
         )
-        self.addParameter(
-            QgsProcessingParameterMultipleLayers(
-                self.INPUT_POLYGONS,
-                self.tr("Polygon Layers"),
-                QgsProcessing.TypeVectorPolygon,
-                optional=True,
-            )
-        )
-
         self.addParameter(
             QgsProcessingParameterBoolean(
                 self.SELECTED, self.tr("Process only selected features")
