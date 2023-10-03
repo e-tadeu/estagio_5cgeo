@@ -70,9 +70,9 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterVectorLayer(
                 self.INPUT_LINES,
-                self.tr("Linestring Layers"),
-                QgsProcessing.TypeVectorLine,
-                optional=True,
+                self.tr("Linestring Layer"),
+                types=[QgsProcessing.TypeVectorLine],
+                #optional=False,
             )
         )
         self.addParameter(
