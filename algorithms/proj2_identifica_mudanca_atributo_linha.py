@@ -462,7 +462,7 @@ class Projeto2Solucao(QgsProcessingAlgorithm): #NÃO ALTERE O NOME "PROJETO2SOLU
         )
 
     def group(self):
-        return "Projeto 5"
+        return "Projeto 2"
     
     def tr(self, string):
         return QCoreApplication.translate('Processing', string)
