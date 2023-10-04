@@ -32,13 +32,19 @@ __copyright__ = '(C) 2023 by Estagiarios 5 CGEO'
 __revision__ = '$Format:%H$'
 from itertools import chain
 from PyQt5.QtCore import QCoreApplication
-
+from qgis.PyQt.QtCore import QVariant
 from DsgTools.core.GeometricTools.layerHandler import LayerHandler
 from qgis.core import (
     QgsDataSourceUri,
+    QgsProject,
+    QgsProcessingContext,
+    QgsProcessingUtils,
+    QgsGeometry,
     QgsFeature,
     QgsFeatureSink,
     QgsFeatureRequest,
+    QgsField,
+    QgsFields,
     QgsProcessing,
     QgsProcessingAlgorithm,
     QgsProcessingException,
