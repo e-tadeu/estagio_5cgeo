@@ -119,7 +119,7 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
         onlySelected = self.parameterAsBool(parameters, self.SELECTED, context)
         minLength = self.parameterAsDouble(parameters, self.MIN_LENGTH, context)
         tol = self.parameterAsDouble(parameters, self.TOLERANCE, context)
-        self.prepareFlagSink(parameters, inputLyr, QgsWkbTypes.LineString, context)
+        #self.prepareFlagSink(parameters, inputLyr, QgsWkbTypes.LineString, context)
 
         multiStepFeedback = QgsProcessingMultiStepFeedback(4, feedback)
         multiStepFeedback.setCurrentStep(0)
