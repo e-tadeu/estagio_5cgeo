@@ -78,25 +78,6 @@ class Projeto2Solucao(QgsProcessingAlgorithm): #NÃO ALTERE O NOME "PROJETO2SOLU
     LINE_FILTER_LAYERS = "LINE_FILTER_LAYERS"
     FLAGS = "FLAGS"
 
-    def name(self):
-        return "identifica_linhas_conectadas_com_mesmo_conjunto_de_atributos"
-
-    def displayName(self):
-        return (
-            "Questão 09: Identificar linhas conectadas com mesmo conjunto de atributos"
-        )
-
-    def group(self):
-        return "ListaExercicios"
-
-    def groupId(self):
-        return "ListaExercicios"
-
-    def tr(self, string):
-        return QCoreApplication.translate("Questao09", string)
-
-    def createInstance(self):
-        return Questao09()
 
     def initAlgorithm(self, config):
         """
@@ -470,4 +451,21 @@ class Projeto2Solucao(QgsProcessingAlgorithm): #NÃO ALTERE O NOME "PROJETO2SOLU
             context=context,
             is_child_algorithm=is_child_algorithm,
         )
-        return None
+
+
+    def name(self):
+        return "identifica_linhas_conectadas_com_mesmo_conjunto_de_atributos"
+
+    def displayName(self):
+        return (
+            "Identificar linhas conectadas com mesmo conjunto de atributos"
+        )
+
+    def group(self):
+        return "Projeto 2"
+    
+    def tr(self, string):
+        return QCoreApplication.translate('Processing', string)
+
+    def createInstance(self):
+        return Projeto2Solucao()
