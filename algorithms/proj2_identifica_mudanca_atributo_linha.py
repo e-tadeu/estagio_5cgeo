@@ -67,7 +67,7 @@ from qgis.PyQt.QtCore import QVariant
 import math
 
 
-class Questao09(QgsProcessingAlgorithm):
+class Projeto2Solucao(QgsProcessingAlgorithm): #NÃO ALTERE O NOME "PROJETO2SOLUCAO"
 
     INPUT = "INPUT"
     SELECTED = "SELECTED"
