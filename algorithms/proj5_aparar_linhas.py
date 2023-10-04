@@ -256,7 +256,7 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
             parameters, source, wkbType, context, self.FLAGS, addFeatId=addFeatId
         )
 
-        def flagFeature(self, flagGeom, flagText, featid=None, fromWkb=False, sink=None):
+    def flagFeature(self, flagGeom, flagText, featid=None, fromWkb=False, sink=None):
         """
         Creates and adds to flagSink a new flag with the reason.
         :param flagGeom: (QgsGeometry) geometry of the flag;
