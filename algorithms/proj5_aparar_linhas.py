@@ -38,6 +38,7 @@ from qgis.core import (
     QgsDataSourceUri,
     QgsFeature,
     QgsFeatureSink,
+    QgsFeatureRequest,
     QgsProcessing,
     QgsProcessingAlgorithm,
     QgsProcessingException,
