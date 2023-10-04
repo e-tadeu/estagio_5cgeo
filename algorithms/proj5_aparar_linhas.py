@@ -125,12 +125,11 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
             )
             dangleLyr = AlgRunner().runIdentifyDangles(
                 inputLayer=inputLyr,
-                searchRadius=searchRadius,
+                searchRadius=tol,
                 context=context,
                 onlySelected=onlySelected,
                 ignoreDanglesOnUnsegmentedLines=True,
                 inputIsBoundaryLayer=True,
-                geographicBoundsLyr=geographicBoundsLyr,
                 feedback=multiStepFeedback,
             )
 
