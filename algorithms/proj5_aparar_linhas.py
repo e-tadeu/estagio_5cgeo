@@ -201,12 +201,13 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
             ][0]
             if lineGeometry.length() > minLength:
                 continue
-            self.flagFeature(
-                lineGeometry,
-                self.tr(
-                    f"First order dangle on {inputLyr.name()} smaller than {minLength}"
-                ),
-            )
+            #self.flagFeature(
+            #    lineGeometry,
+            #    self.tr(
+            #        f"First order dangle on {inputLyr.name()} smaller than {minLength}"
+            #    ),
+            #)
+            feedback.pushInfo(f"\n\nFirst order dangle on {inputLyr.name()} smaller than {minLength}")
             multiStepFeedback.setProgress(current * currentTotal)
         return {self.OUTPUT: inputLyr, self.FLAGS: self.flag_id}
 
