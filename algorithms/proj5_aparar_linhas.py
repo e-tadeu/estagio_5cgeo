@@ -96,7 +96,7 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
                 self.tr("Minimum size"),
                 minValue=0,
                 type=QgsProcessingParameterNumber.Double,
-                defaultValue=0.1,
+                defaultValue=100,
             )
         )
         self.addOutput(
