@@ -64,6 +64,7 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
     TOLERANCE = "TOLERANCE"
     MIN_LENGTH = "MIN_LENGTH"
     OUTPUT = "OUTPUT"
+    FLAGS = "FLAGS"
 
     def initAlgorithm(self, config):
         """
@@ -102,6 +103,11 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
                 self.OUTPUT, self.tr("Original layer with overlayed lines")
             )
         )
+        self.addParameter(
+            QgsProcessingParameterFeatureSink(
+                self.FLAGS, self.tr("{0} Flags").format(self.displayName())
+            )
+        )
 
     def processAlgorithm(self, parameters, context, feedback):
         """
@@ -113,6 +119,7 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
         onlySelected = self.parameterAsBool(parameters, self.SELECTED, context)
         minLength = self.parameterAsDouble(parameters, self.MIN_LENGTH, context)
         tol = self.parameterAsDouble(parameters, self.TOLERANCE, context)
+        self.prepareFlagSink(parameters, inputLyr, QgsWkbTypes.LineString, context)
 
         multiStepFeedback = QgsProcessingMultiStepFeedback(4, feedback)
         multiStepFeedback.setCurrentStep(0)
@@ -163,9 +170,8 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
             onlySelected=onlySelected,
         )
 
-        return {self.OUTPUT: inputLyr}
+        #return {self.OUTPUT: inputLyr}
     
-        self.prepareFlagSink(parameters, inputLyr, QgsWkbTypes.LineString, context)
         if inputLyr is None:
             return {self.FLAGS: self.flag_id}
         # Compute the number of steps to display within the progress bar and
@@ -201,7 +207,7 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
                 ),
             )
             multiStepFeedback.setProgress(current * currentTotal)
-        return {self.FLAGS: self.flag_id}
+        return {self.OUTPUT: inputLyr, self.FLAGS: self.flag_id}
 
     def name(self):
         """
