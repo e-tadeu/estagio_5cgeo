@@ -61,6 +61,7 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
     INPUT = "INPUT"
     SELECTED = "SELECTED"
     TOLERANCE = "TOLERANCE"
+    MIN_LENGTH = "MIN_LENGTH"
     OUTPUT = "OUTPUT"
 
     def initAlgorithm(self, config):
@@ -86,6 +87,15 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
                 defaultValue=1.0,
             )
         )
+        self.addParameter(
+            QgsProcessingParameterNumber(
+                self.MIN_LENGTH,
+                self.tr("Minimum size"),
+                minValue=0,
+                type=QgsProcessingParameterNumber.Double,
+                defaultValue=0.1,
+            )
+        )
         self.addOutput(
             QgsProcessingOutputVectorLayer(
                 self.OUTPUT, self.tr("Original layer with overlayed lines")
@@ -100,6 +110,7 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
         algRunner = AlgRunner()
         inputLyr = self.parameterAsVectorLayer(parameters, self.INPUT, context)
         onlySelected = self.parameterAsBool(parameters, self.SELECTED, context)
+        minLength = self.parameterAsDouble(parameters, self.MIN_LENGTH, context)
         tol = self.parameterAsDouble(parameters, self.TOLERANCE, context)
 
         multiStepFeedback = QgsProcessingMultiStepFeedback(4, feedback)
@@ -111,12 +122,15 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
                     layer=inputLyr.name()
                 )
             )
-            dangleLyr = algRunner.runIdentifyDangles(
-                inputLyr,
-                tol,
-                context,
-                feedback=multiStepFeedback,
+            dangleLyr = AlgRunner().runIdentifyDangles(
+                inputLayer=inputLyr,
+                searchRadius=searchRadius,
+                context=context,
                 onlySelected=onlySelected,
+                ignoreDanglesOnUnsegmentedLines=True,
+                inputIsBoundaryLayer=True,
+                geographicBoundsLyr=geographicBoundsLyr,
+                feedback=multiStepFeedback,
             )
 
             multiStepFeedback.setCurrentStep(1)
@@ -150,6 +164,44 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
         )
 
         return {self.OUTPUT: inputLyr}
+    
+        self.prepareFlagSink(parameters, inputLyr, QgsWkbTypes.LineString, context)
+        if inputLyr is None:
+            return {self.FLAGS: self.flag_id}
+        # Compute the number of steps to display within the progress bar and
+        # get features from source
+        #feedbackTotal = 2
+        #multiStepFeedback = QgsProcessingMultiStepFeedback(feedbackTotal, feedback)
+        #multiStepFeedback.setCurrentStep(0)
+        #multiStepFeedback.setProgressText(self.tr("Getting Dangles..."))
+        #multiStepFeedback.setCurrentStep(1)
+        #multiStepFeedback.setProgressText(self.tr("Raising flags..."))
+        nDangles = dangleLyr.featureCount()
+        if nDangles == 0:
+            return {self.FLAGS: self.flag_id}
+        # currentValue = feedback.progress()
+        currentTotal = 100 / nDangles
+        for current, feat in enumerate(dangleLyr.getFeatures()):
+            if multiStepFeedback.isCanceled():
+                break
+            dangleGeom = feat.geometry()
+            dangleBB = dangleGeom.boundingBox()
+            request = QgsFeatureRequest().setNoAttributes().setFilterRect(dangleBB)
+            lineGeometry = [
+                i.geometry()
+                for i in inputLyr.getFeatures(request)
+                if i.geometry().intersects(dangleGeom)
+            ][0]
+            if lineGeometry.length() > minLength:
+                continue
+            self.flagFeature(
+                lineGeometry,
+                self.tr(
+                    f"First order dangle on {inputLyr.name()} smaller than {minLength}"
+                ),
+            )
+            multiStepFeedback.setProgress(current * currentTotal)
+        return {self.FLAGS: self.flag_id}
 
     def name(self):
         """
