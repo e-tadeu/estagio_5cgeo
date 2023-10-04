@@ -256,6 +256,22 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
             parameters, source, wkbType, context, self.FLAGS, addFeatId=addFeatId
         )
 
+    def prepareAndReturnFlagSink(
+        self, parameters, source, wkbType, context, UI_FIELD, addFeatId=False
+    ):
+        flagFields = self.getFlagFields(addFeatId=addFeatId)
+        (flagSink, flag_id) = self.parameterAsSink(
+            parameters,
+            UI_FIELD,
+            context,
+            flagFields,
+            wkbType,
+            source.sourceCrs() if source is not None else QgsProject.instance().crs(),
+        )
+        if flagSink is None:
+            raise QgsProcessingException(self.invalidSinkError(parameters, UI_FIELD))
+        return (flagSink, flag_id)
+    
     def flagFeature(self, flagGeom, flagText, featid=None, fromWkb=False, sink=None):
         """
         Creates and adds to flagSink a new flag with the reason.
