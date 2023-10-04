@@ -272,6 +272,13 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
             raise QgsProcessingException(self.invalidSinkError(parameters, UI_FIELD))
         return (flagSink, flag_id)
     
+    def getFlagFields(self, addFeatId=False):
+        fields = QgsFields()
+        fields.append(QgsField("reason", QVariant.String))
+        if addFeatId:
+            fields.append(QgsField("featid", QVariant.String))
+        return fields
+    
     def flagFeature(self, flagGeom, flagText, featid=None, fromWkb=False, sink=None):
         """
         Creates and adds to flagSink a new flag with the reason.
