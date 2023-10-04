@@ -49,6 +49,7 @@ from qgis.core import (
     QgsProcessingParameterFeatureSource,
     QgsProcessingParameterField,
     QgsProcessingParameterMultipleLayers,
+    QgsProcessingParameterNumber,
     QgsProcessingParameterVectorLayer,
     QgsWkbTypes,
 )
