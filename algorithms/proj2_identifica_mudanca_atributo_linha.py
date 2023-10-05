@@ -37,6 +37,9 @@ import processing
 from processing.tools import dataobjects
 from itertools import combinations, tee
 from typing import Iterable, List
+
+from DsgTools.core.GeometricTools.layerHandler import LayerHandler
+
 from qgis.PyQt.QtCore import QCoreApplication
 from qgis.core import (
     QgsProcessing,
@@ -162,6 +165,8 @@ class Projeto2Solucao(QgsProcessingAlgorithm): #NÃO ALTERE O NOME "PROJETO2SOLU
         attributeBlackList = self.parameterAsFields(
             parameters, self.ATTRIBUTE_BLACK_LIST, context
         )
+        layerHandler = LayerHandler()
+        
         fieldList = self.layerHandler.getAttributesFromBlackList(
             inputLyr,
             attributeBlackList,
