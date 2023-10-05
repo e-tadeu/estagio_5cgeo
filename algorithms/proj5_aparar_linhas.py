@@ -32,13 +32,19 @@ __copyright__ = '(C) 2023 by Estagiarios 5 CGEO'
 __revision__ = '$Format:%H$'
 from itertools import chain
 from PyQt5.QtCore import QCoreApplication
-
+from qgis.PyQt.QtCore import QVariant
 from DsgTools.core.GeometricTools.layerHandler import LayerHandler
 from qgis.core import (
     QgsDataSourceUri,
+    QgsProject,
+    QgsProcessingContext,
+    QgsProcessingUtils,
+    QgsGeometry,
     QgsFeature,
     QgsFeatureSink,
     QgsFeatureRequest,
+    QgsField,
+    QgsFields,
     QgsProcessing,
     QgsProcessingAlgorithm,
     QgsProcessingException,
@@ -120,7 +126,7 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
         onlySelected = self.parameterAsBool(parameters, self.SELECTED, context)
         minLength = self.parameterAsDouble(parameters, self.MIN_LENGTH, context)
         tol = self.parameterAsDouble(parameters, self.TOLERANCE, context)
-        #self.prepareFlagSink(parameters, inputLyr, QgsWkbTypes.LineString, context)
+        self.prepareFlagSink(parameters, inputLyr, QgsWkbTypes.LineString, context)
 
         multiStepFeedback = QgsProcessingMultiStepFeedback(4, feedback)
         multiStepFeedback.setCurrentStep(0)
@@ -201,12 +207,12 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
             ][0]
             if lineGeometry.length() > minLength:
                 continue
-            #self.flagFeature(
-            #    lineGeometry,
-            #    self.tr(
-            #        f"First order dangle on {inputLyr.name()} smaller than {minLength}"
-            #    ),
-            #)
+            self.flagFeature(
+                lineGeometry,
+                self.tr(
+                    f"First order dangle on {inputLyr.name()} smaller than {minLength}"
+                ),
+            )
             feedback.pushInfo(f"\n\nFirst order dangle on {inputLyr.name()} smaller than {minLength}")
             multiStepFeedback.setProgress(current * currentTotal)
         return {self.OUTPUT: inputLyr, self.FLAGS: self.flag_id}
@@ -250,3 +256,50 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
 
     def createInstance(self):
         return Projeto5Solucao()
+    
+    def prepareFlagSink(self, parameters, source, wkbType, context, addFeatId=False):
+        (self.flagSink, self.flag_id) = self.prepareAndReturnFlagSink(
+            parameters, source, wkbType, context, self.FLAGS, addFeatId=addFeatId
+        )
+
+    def prepareAndReturnFlagSink(
+        self, parameters, source, wkbType, context, UI_FIELD, addFeatId=False
+    ):
+        flagFields = self.getFlagFields(addFeatId=addFeatId)
+        (flagSink, flag_id) = self.parameterAsSink(
+            parameters,
+            UI_FIELD,
+            context,
+            flagFields,
+            wkbType,
+            source.sourceCrs() if source is not None else QgsProject.instance().crs(),
+        )
+        if flagSink is None:
+            raise QgsProcessingException(self.invalidSinkError(parameters, UI_FIELD))
+        return (flagSink, flag_id)
+    
+    def getFlagFields(self, addFeatId=False):
+        fields = QgsFields()
+        fields.append(QgsField("reason", QVariant.String))
+        if addFeatId:
+            fields.append(QgsField("featid", QVariant.String))
+        return fields
+    
+    def flagFeature(self, flagGeom, flagText, featid=None, fromWkb=False, sink=None):
+        """
+        Creates and adds to flagSink a new flag with the reason.
+        :param flagGeom: (QgsGeometry) geometry of the flag;
+        :param flagText: (string) Text of the flag
+        """
+        flagSink = self.flagSink if sink is None else sink
+        newFeat = QgsFeature(self.getFlagFields(addFeatId=featid is not None))
+        newFeat["reason"] = flagText
+        if featid is not None:
+            newFeat["featid"] = featid
+        if fromWkb:
+            geom = QgsGeometry()
+            geom.fromWkb(flagGeom)
+            newFeat.setGeometry(geom)
+        else:
+            newFeat.setGeometry(flagGeom)
+        flagSink.addFeature(newFeat, QgsFeatureSink.FastInsert)
