@@ -218,7 +218,7 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
 
         #Operação de diferença
         algRunner.runDifference(inputLyr, 
-                                self.flag_id, 
+                                self.flag_id,
                                 context)
         #Merge de linhas que não mudam de ângulo
 
