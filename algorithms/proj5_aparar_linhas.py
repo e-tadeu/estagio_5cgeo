@@ -217,8 +217,7 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
             multiStepFeedback.setProgress(current * currentTotal)
 
         #Operação de diferença
-        algRunner.runDifference(self,
-                                inputLyr, 
+        algRunner.runDifference(inputLyr, 
                                 self.flag_id, 
                                 context)
         #Merge de linhas que não mudam de ângulo
