@@ -215,6 +215,11 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
             )
             feedback.pushInfo(f"\n\nFirst order dangle on {inputLyr.name()} smaller than {minLength}")
             multiStepFeedback.setProgress(current * currentTotal)
+
+            #Operação de diferença
+
+            #Merge de linhas que não mudam de ângulo
+
         return {self.OUTPUT: inputLyr, self.FLAGS: self.flag_id}
 
     def name(self):
