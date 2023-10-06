@@ -213,7 +213,7 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
                     f"First order dangle on {inputLyr.name()} smaller than {minLength}"
                 ),
             )
-            feedback.pushInfo(f"\n\nFirst order dangle on {inputLyr.name()} smaller than {minLength}")
+            #feedback.pushInfo(f"\n\nFirst order dangle on {inputLyr.name()} smaller than {minLength}")
             multiStepFeedback.setProgress(current * currentTotal)
 
             #Operação de diferença
