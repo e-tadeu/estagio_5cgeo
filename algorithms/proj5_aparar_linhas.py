@@ -219,7 +219,10 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
         #Operação de diferença
         algRunner.runDifference(inputLyr, 
                                 self.flag_id,
-                                context)
+                                context,
+                                feedback=self.tr(
+                                    f"Obtendo a diferença entre {inputLyr.name()} e {self.flag_id.nme().}"
+                                ))
         #Merge de linhas que não mudam de ângulo
 
         return {self.OUTPUT: inputLyr, self.FLAGS: self.flag_id}
