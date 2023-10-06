@@ -180,7 +180,7 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
         #return {self.OUTPUT: inputLyr}
     
         if inputLyr is None:
-            return {self.FLAGS: self.flag_id}
+            return {self.OUTPUT: inputLyr, self.FLAGS: self.flag_id}
         # Compute the number of steps to display within the progress bar and
         # get features from source
         #feedbackTotal = 2
@@ -191,7 +191,7 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
         #multiStepFeedback.setProgressText(self.tr("Raising flags..."))
         nDangles = dangleLyr.featureCount()
         if nDangles == 0:
-            return {self.FLAGS: self.flag_id}
+            return {self.OUTPUT: inputLyr, self.FLAGS: self.flag_id}
         # currentValue = feedback.progress()
         currentTotal = 100 / nDangles
         for current, feat in enumerate(dangleLyr.getFeatures()):
