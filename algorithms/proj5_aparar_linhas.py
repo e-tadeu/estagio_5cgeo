@@ -221,7 +221,7 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
                                 self.flag_id,
                                 context,
                                 feedback=self.tr(
-                                    f"Obtendo a diferença entre {inputLyr.name()} e {self.flag_id.nme().}"
+                                    f"Obtendo a diferença entre {inputLyr.name()} e {self.flag_id.name()}"
                                 ))
         #Merge de linhas que não mudam de ângulo
 
