@@ -42,12 +42,15 @@ from qgis.core import (
     QgsGeometry,
     QgsFeature,
     QgsFeatureSink,
+    QgsFeedback,
     QgsFeatureRequest,
     QgsField,
     QgsFields,
+    QgsPointXY,
     QgsProcessing,
     QgsProcessingAlgorithm,
     QgsProcessingException,
+    QgsProcessingFeedback,
     QgsProcessingMultiStepFeedback,
     QgsProcessingOutputVectorLayer,
     QgsProcessingParameterBoolean,
@@ -58,11 +61,12 @@ from qgis.core import (
     QgsProcessingParameterMultipleLayers,
     QgsProcessingParameterNumber,
     QgsProcessingParameterVectorLayer,
+    QgsVectorLayer,
     QgsWkbTypes,
 )
 
 from .algRunner import AlgRunner
-#from .validationAlgorithm import ValidationAlgorithm
+from math import atan2, degrees
 
 
 class Projeto5Solucao(QgsProcessingAlgorithm):
@@ -193,7 +197,15 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
         if nDangles == 0:
             return {self.OUTPUT: inputLyr, self.FLAGS: self.flag_id}
         # currentValue = feedback.progress()
+
+        danglelayer = QgsVectorLayer(f"LineString?crs={inputLyr.crs().authid()}",
+                                     "arestas_soltas",
+                                     "memory"
+                                     )
+        danglelayer.dataProvider().addAttributes([QgsField("id", QVariant.Int)])
+
         currentTotal = 100 / nDangles
+        cont = 1
         for current, feat in enumerate(dangleLyr.getFeatures()):
             if multiStepFeedback.isCanceled():
                 break
@@ -207,25 +219,111 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
             ][0]
             if lineGeometry.length() > minLength:
                 continue
+
+            feature = QgsFeature()
+            feature.setGeometry(lineGeometry)
+            feature.setAttributes([cont])
+            danglelayer.dataProvider().addFeature(feature)
+            feedback.pushInfo(f'{lineGeometry} é uma linha de ponta solta.')
+            danglelayer.updateExtents()
+            cont += 1
             self.flagFeature(
                 lineGeometry,
                 self.tr(
                     f"First order dangle on {inputLyr.name()} smaller than {minLength}"
                 ),
             )
-            #feedback.pushInfo(f"\n\nFirst order dangle on {inputLyr.name()} smaller than {minLength}")
-            multiStepFeedback.setProgress(current * currentTotal)
 
-        #Operação de diferença
-        algRunner.runDifference(inputLyr, 
-                                self.flag_id,
-                                context,
-                                feedback=self.tr(
-                                    f"Obtendo a diferença entre {inputLyr.name()} e {self.flag_id.name()}"
-                                ))
+            multiStepFeedback.setProgress(current * currentTotal)
+        
+        diferencalayer = QgsVectorLayer(f"LineString?crs={inputLyr.crs().authid()}",
+                                     "diferença",
+                                     "memory"
+                                     )
+        diferencalayer.dataProvider().addAttributes([QgsField("id", QVariant.Int)])
+        cont = 1
+        for linhas in inputLyr.getFeatures():
+            linegeometria = linhas.geometry()
+            flag = True
+            for linhassoltas in danglelayer.getFeatures():
+                linesoltageometria = linhassoltas.geometry()
+                if linegeometria.equals(linesoltageometria):
+                    flag = False
+
+            if flag == True:
+                feature = QgsFeature()
+                feature.setGeometry(linegeometria)
+                feature.setAttributes([cont])
+                diferencalayer.dataProvider().addFeature(feature)
+                feedback.pushInfo(f'{diferencalayer} é uma linha que quero.')
+                diferencalayer.updateExtents()
+                cont += 1
+        QgsProject.instance().addMapLayer(diferencalayer)
+
         #Merge de linhas que não mudam de ângulo
 
-        return {self.OUTPUT: inputLyr, self.FLAGS: self.flag_id}
+        mescladalayer = QgsVectorLayer(f"LineString?crs={inputLyr.crs().authid()}",
+                                     "mesclada",
+                                     "memory"
+                                     )
+        mescladalayer.dataProvider().addAttributes([QgsField("id", QVariant.Int)])
+
+        geometrias_mescladas = list()
+        for feature in diferencalayer.getFeatures():
+            geometria = feature.geometry()
+            for i in range (0, len(geometrias_mescladas)):
+                geometry = geometrias_mescladas[i]
+                if geometria != geometry:
+                    geometrias_mescladas.append(geometria)
+        
+        feedback.pushInfo(f"Há {len(geometrias_mescladas)} feições em geometrias mescladas!")
+        for i, linha1 in enumerate(geometrias_mescladas):
+            for j, linha2 in enumerate(geometrias_mescladas):
+                if i != j:  # Não compare uma linha com ela mesma
+                    # Verifique se as linhas compartilham um ponto de extremidade
+                    for part in linha1.parts():
+                        vertices = list(part)
+                        ponto_inicio1 = QgsGeometry.fromPointXY(QgsPointXY(vertices[0].x(), vertices[0].y()))
+                        ponto_fim1 = QgsGeometry.fromPointXY(QgsPointXY(vertices[-1].x(), vertices[-1].y()))
+                    
+                    for part in linha2.parts():
+                        vertices = list(part)
+                        ponto_inicio2 = QgsGeometry.fromPointXY(QgsPointXY(vertices[0].x(), vertices[0].y()))
+                        ponto_fim2 = QgsGeometry.fromPointXY(QgsPointXY(vertices[-1].x(), vertices[-1].y()))
+
+                    if (
+                        ponto_inicio1 == ponto_inicio2 or
+                        ponto_inicio1 == ponto_fim2 or
+                        ponto_fim1 == ponto_inicio2 or
+                        ponto_fim1 == ponto_fim2
+                    ):
+                        # Encontre o ângulo entre as duas linhas em graus
+                        angulo = abs(degrees(atan2(
+                            ponto_inicio2.y() - ponto_fim1.y(),
+                            ponto_inicio2.x() - ponto_fim1.x()
+                        )))
+
+                        # Se o ângulo for aproximadamente 180 graus, mesclamos as linhas
+                        tolerancia_angulo = 1  # Ajuste conforme necessário
+                        if angulo > 180 - tolerancia_angulo and angulo < 180 + tolerancia_angulo:
+                            # Mesclar as geometrias das linhas
+                            nova_geometria = linha1.combine(linha2)
+                            geometrias_mescladas[i] = nova_geometria
+
+        # Adicione as geometrias mescladas à camada mesclada
+        for geometria in geometrias_mescladas:
+            nova_feature = QgsFeature()
+            nova_feature.setGeometry(geometria)
+            mescladalayer.dataProvider().addFeatures([nova_feature])
+
+        # Atualize a camada mesclada
+        mescladalayer.updateExtents()
+
+        # Adicione a camada mesclada ao projeto
+        QgsProject.instance().addMapLayer(mescladalayer)
+
+        
+        return {self.OUTPUT: inputLyr, self.FLAGS: self.flag_id} 
 
     def name(self):
         """
