@@ -40,6 +40,7 @@ from qgis.core import (
     QgsProcessingContext,
     QgsProcessingUtils,
     QgsGeometry,
+    QgsGeometryCollection,
     QgsFeature,
     QgsFeatureSink,
     QgsFeedback,
@@ -119,6 +120,7 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
                 self.FLAGS, self.tr("{0} Flags").format(self.displayName())
             )
         )
+        
 
     def processAlgorithm(self, parameters, context, feedback):
         """
@@ -135,6 +137,7 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
         multiStepFeedback = QgsProcessingMultiStepFeedback(4, feedback)
         multiStepFeedback.setCurrentStep(0)
 
+        #SECCIONAMENTO DE LINHAS QUE SE CRUZAM
         if tol > 0:
             multiStepFeedback.pushInfo(
                 self.tr("Identifying dangles on {layer}...").format(
@@ -181,22 +184,14 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
             onlySelected=onlySelected,
         )
 
-        #return {self.OUTPUT: inputLyr}
+        #IDENTIFICAÇÃO DE ARESTAS COM COMPRIMENTO MENOR QUE A TOLERÂNCIA
     
         if inputLyr is None:
             return {self.OUTPUT: inputLyr, self.FLAGS: self.flag_id}
-        # Compute the number of steps to display within the progress bar and
-        # get features from source
-        #feedbackTotal = 2
-        #multiStepFeedback = QgsProcessingMultiStepFeedback(feedbackTotal, feedback)
-        #multiStepFeedback.setCurrentStep(0)
-        #multiStepFeedback.setProgressText(self.tr("Getting Dangles..."))
-        #multiStepFeedback.setCurrentStep(1)
-        #multiStepFeedback.setProgressText(self.tr("Raising flags..."))
+
         nDangles = dangleLyr.featureCount()
         if nDangles == 0:
             return {self.OUTPUT: inputLyr, self.FLAGS: self.flag_id}
-        # currentValue = feedback.progress()
 
         danglelayer = QgsVectorLayer(f"LineString?crs={inputLyr.crs().authid()}",
                                      "arestas_soltas",
@@ -224,7 +219,6 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
             feature.setGeometry(lineGeometry)
             feature.setAttributes([cont])
             danglelayer.dataProvider().addFeature(feature)
-            feedback.pushInfo(f'{lineGeometry} é uma linha de ponta solta.')
             danglelayer.updateExtents()
             cont += 1
             self.flagFeature(
@@ -236,6 +230,7 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
 
             multiStepFeedback.setProgress(current * currentTotal)
         
+        #OBTENÇÃO DA DIFERENÇA ENTRE GEOMETRIAS (INPUT E ARESTAS SOLTAS)
         diferencalayer = QgsVectorLayer(f"LineString?crs={inputLyr.crs().authid()}",
                                      "diferença",
                                      "memory"
@@ -255,73 +250,131 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
                 feature.setGeometry(linegeometria)
                 feature.setAttributes([cont])
                 diferencalayer.dataProvider().addFeature(feature)
-                feedback.pushInfo(f'{diferencalayer} é uma linha que quero.')
                 diferencalayer.updateExtents()
                 cont += 1
-        QgsProject.instance().addMapLayer(diferencalayer)
 
-        #Merge de linhas que não mudam de ângulo
-
+        #MERGE DE LINHAS QUE SE TOCAM DE FORMA A VOLTAR CONFORME ORIGINAL
         mescladalayer = QgsVectorLayer(f"LineString?crs={inputLyr.crs().authid()}",
                                      "mesclada",
                                      "memory"
                                      )
         mescladalayer.dataProvider().addAttributes([QgsField("id", QVariant.Int)])
 
-        geometrias_mescladas = list()
-        for feature in diferencalayer.getFeatures():
-            geometria = feature.geometry()
-            for i in range (0, len(geometrias_mescladas)):
-                geometry = geometrias_mescladas[i]
-                if geometria != geometry:
-                    geometrias_mescladas.append(geometria)
-        
-        feedback.pushInfo(f"Há {len(geometrias_mescladas)} feições em geometrias mescladas!")
-        for i, linha1 in enumerate(geometrias_mescladas):
-            for j, linha2 in enumerate(geometrias_mescladas):
-                if i != j:  # Não compare uma linha com ela mesma
-                    # Verifique se as linhas compartilham um ponto de extremidade
-                    for part in linha1.parts():
-                        vertices = list(part)
-                        ponto_inicio1 = QgsGeometry.fromPointXY(QgsPointXY(vertices[0].x(), vertices[0].y()))
-                        ponto_fim1 = QgsGeometry.fromPointXY(QgsPointXY(vertices[-1].x(), vertices[-1].y()))
-                    
-                    for part in linha2.parts():
-                        vertices = list(part)
-                        ponto_inicio2 = QgsGeometry.fromPointXY(QgsPointXY(vertices[0].x(), vertices[0].y()))
-                        ponto_fim2 = QgsGeometry.fromPointXY(QgsPointXY(vertices[-1].x(), vertices[-1].y()))
+        cont = 1
+        for linha1 in diferencalayer.getFeatures():
+            geometria_a_mesclar = list()
+            geometria = linha1.geometry()
+            geometria_a_mesclar.append(geometria)
+            for part in geometria.parts():
+                vertices = list(part)
+                ponto_inicio1 = QgsPointXY(QgsPointXY(vertices[0].x(), vertices[0].y()))
+                ponto_fim1 = QgsPointXY(QgsPointXY(vertices[-1].x(), vertices[-1].y()))
 
-                    if (
-                        ponto_inicio1 == ponto_inicio2 or
-                        ponto_inicio1 == ponto_fim2 or
-                        ponto_fim1 == ponto_inicio2 or
-                        ponto_fim1 == ponto_fim2
-                    ):
-                        # Encontre o ângulo entre as duas linhas em graus
-                        angulo = abs(degrees(atan2(
-                            ponto_inicio2.y() - ponto_fim1.y(),
-                            ponto_inicio2.x() - ponto_fim1.x()
-                        )))
+            for linha2 in diferencalayer.getFeatures():
+                geometry = linha2.geometry()
+                if geometria.equals(geometry):
+                    continue
+                for part in geometry.parts():
+                    vertices = list(part)
+                    ponto_inicio2 = QgsPointXY(QgsPointXY(vertices[0].x(), vertices[0].y()))
+                    ponto_fim2 = QgsPointXY(QgsPointXY(vertices[-1].x(), vertices[-1].y()))
 
-                        # Se o ângulo for aproximadamente 180 graus, mesclamos as linhas
-                        tolerancia_angulo = 1  # Ajuste conforme necessário
-                        if angulo > 180 - tolerancia_angulo and angulo < 180 + tolerancia_angulo:
-                            # Mesclar as geometrias das linhas
-                            nova_geometria = linha1.combine(linha2)
-                            geometrias_mescladas[i] = nova_geometria
+                if geometria.touches(geometry) or geometria.overlaps(geometry):
+                    feedback.pushInfo(f'A {geometria} toca com a {geometry}.')
+                    angulo1 = abs(degrees(atan2(ponto_inicio1.y() - ponto_fim1.y(), ponto_inicio1.x() - ponto_fim1.x())))
+                    angulo2 = abs(degrees(atan2(ponto_inicio2.y() - ponto_fim2.y(), ponto_inicio2.x() - ponto_fim2.x())))
+                    dif_ang = abs(angulo1 - angulo2)
+                    tolerancia_angulo = 1  # Ajuste conforme necessário
+                    if dif_ang < tolerancia_angulo:
+                        geometria_a_mesclar.append(geometry)
 
-        # Adicione as geometrias mescladas à camada mesclada
-        for geometria in geometrias_mescladas:
+            nova_geometria = QgsGeometry.unaryUnion(geometria_a_mesclar)
             nova_feature = QgsFeature()
-            nova_feature.setGeometry(geometria)
+            nova_feature.setGeometry(nova_geometria)
+            nova_feature.setAttributes([cont])
+            #feedback.pushInfo(f'{nova_geometria} é uma linha que quero.')
             mescladalayer.dataProvider().addFeatures([nova_feature])
-
-        # Atualize a camada mesclada
+            mescladalayer.updateExtents()
+            cont += 1
         mescladalayer.updateExtents()
-
-        # Adicione a camada mesclada ao projeto
         QgsProject.instance().addMapLayer(mescladalayer)
 
+        #REMOÇÃO DE GEOMETRIAS DUPLICADAS
+        if mescladalayer is None:
+            raise QgsProcessingException(
+                self.invalidSourceError(parameters, self.INPUT)
+            )
+        onlySelected = self.parameterAsBool(parameters, self.SELECTED, context)
+        multiStepFeedback = QgsProcessingMultiStepFeedback(2, feedback)
+        multiStepFeedback.setCurrentStep(0)
+        multiStepFeedback.pushInfo(
+            self.tr("Identifying duplicated geometries in layer {0}...").format(
+                inputLyr.name()
+            )
+        )
+        flagLyr = algRunner.runIdentifyDuplicatedGeometries(
+            mescladalayer, context, feedback=multiStepFeedback, onlySelected=onlySelected
+        )
+
+        multiStepFeedback.setCurrentStep(1)
+        multiStepFeedback.pushInfo(
+            self.tr("Removing duplicated geometries in layer {0}...").format(
+                mescladalayer.name()
+            )
+        )
+        self.removeFeatures(mescladalayer, flagLyr, multiStepFeedback)
+        #remoção de geometria dentro de outra
+        outputlayer = QgsVectorLayer(f"LineString?crs={inputLyr.crs().authid()}",
+                                "outputlayer",
+                                "memory"
+                                )
+        outputlayer.dataProvider().addAttributes([QgsField("id", QVariant.Int)])
+        cont = 1
+        for linhas in mescladalayer.getFeatures():
+            geometria = linhas.geometry()
+            flag = False
+            for line in mescladalayer.getFeatures():
+                geometry = line.geometry()
+                
+                feedback.pushInfo(f'{linhas} está sendo analisada.')
+                if (linhas.id() != line.id()) and geometria.within(geometry): flag = True
+                
+            if flag == False:
+                nova_feature = QgsFeature()
+                nova_feature.setGeometry(geometria)
+                nova_feature.setAttributes([cont])
+                #feedback.pushInfo(f'{nova_geometria} é uma linha que quero.')
+                outputlayer.dataProvider().addFeatures([nova_feature])
+                outputlayer.updateExtents()
+                cont += 1
+        outputlayer.updateExtents()
+        QgsProject.instance().addMapLayer(outputlayer)
+
+        return {self.OUTPUT: inputLyr}
+
+    def removeFeatures(self, inputLyr, flagLyr, feedback):
+        featureList, total = self.getIteratorAndFeatureCount(flagLyr)
+        localTotal = 100 / total if total else 0
+        inputLyr.beginEditCommand("Removing duplicates")
+        inputLyr.startEditing()
+        removeSet = set()
+        for current, feat in enumerate(featureList):
+            # Stop the algorithm if cancel button has been clicked
+            if feedback.isCanceled():
+                break
+            removeSet = removeSet.union(
+                set(
+                    [
+                        i
+                        for i in map(
+                            int, feat["reason"].split("(")[-1].split(")")[0].split(",")
+                        )
+                    ][1::]
+                )
+            )
+            feedback.setProgress(current * localTotal)
+        inputLyr.deleteFeatures(list(removeSet))
+        inputLyr.endEditCommand()
         
         return {self.OUTPUT: inputLyr, self.FLAGS: self.flag_id} 
 
@@ -411,3 +464,22 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
         else:
             newFeat.setGeometry(flagGeom)
         flagSink.addFeature(newFeat, QgsFeatureSink.FastInsert)
+    
+    def getIteratorAndFeatureCount(self, lyr, onlySelected=False):
+        """
+        Gets the iterator and feature count from lyr.
+        """
+        try:
+            if onlySelected:
+                total = (
+                    100.0 / lyr.selectedFeatureCount()
+                    if lyr.selectedFeatureCount()
+                    else 0
+                )
+                iterator = lyr.getSelectedFeatures()
+            else:
+                total = 100.0 / lyr.featureCount() if lyr.featureCount() else 0
+                iterator = lyr.getFeatures()
+            return iterator, total
+        except:
+            return [], 0
