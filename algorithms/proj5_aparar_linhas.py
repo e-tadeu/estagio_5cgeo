@@ -252,6 +252,31 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
                 diferencalayer.dataProvider().addFeature(feature)
                 diferencalayer.updateExtents()
                 cont += 1
+        QgsProject.instance().addMapLayer(diferencalayer)
+        #REMOÇÃO DE GEOMETRIAS DUPLICADAS
+        if diferencalayer is None:
+            raise QgsProcessingException(
+                self.invalidSourceError(parameters, self.INPUT)
+            )
+        onlySelected = self.parameterAsBool(parameters, self.SELECTED, context)
+        multiStepFeedback = QgsProcessingMultiStepFeedback(2, feedback)
+        multiStepFeedback.setCurrentStep(0)
+        multiStepFeedback.pushInfo(
+            self.tr("Identifying duplicated geometries in layer {0}...").format(
+                inputLyr.name()
+            )
+        )
+        flagLyr = algRunner.runIdentifyDuplicatedGeometries(
+            diferencalayer, context, feedback=multiStepFeedback, onlySelected=onlySelected
+        )
+
+        multiStepFeedback.setCurrentStep(1)
+        multiStepFeedback.pushInfo(
+            self.tr("Removing duplicated geometries in layer {0}...").format(
+                diferencalayer.name()
+            )
+        )
+        self.removeFeatures(diferencalayer, flagLyr, multiStepFeedback)
 
         #MERGE DE LINHAS QUE SE TOCAM DE FORMA A VOLTAR CONFORME ORIGINAL
         mescladalayer = QgsVectorLayer(f"LineString?crs={inputLyr.crs().authid()}",
@@ -262,14 +287,14 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
 
         cont = 1
         for linha1 in diferencalayer.getFeatures():
-            geometria_a_mesclar = list()
             geometria = linha1.geometry()
-            geometria_a_mesclar.append(geometria)
+            geometria_a_mesclar = [geometria]
+            geometria_mesclada = geometria
             for part in geometria.parts():
                 vertices = list(part)
                 ponto_inicio1 = QgsPointXY(QgsPointXY(vertices[0].x(), vertices[0].y()))
                 ponto_fim1 = QgsPointXY(QgsPointXY(vertices[-1].x(), vertices[-1].y()))
-
+            
             for linha2 in diferencalayer.getFeatures():
                 geometry = linha2.geometry()
                 if geometria.equals(geometry):
@@ -279,26 +304,26 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
                     ponto_inicio2 = QgsPointXY(QgsPointXY(vertices[0].x(), vertices[0].y()))
                     ponto_fim2 = QgsPointXY(QgsPointXY(vertices[-1].x(), vertices[-1].y()))
 
-                if geometria.touches(geometry) or geometria.overlaps(geometry):
-                    feedback.pushInfo(f'A {geometria} toca com a {geometry}.')
+                if geometria_mesclada.touches(geometry):
                     angulo1 = abs(degrees(atan2(ponto_inicio1.y() - ponto_fim1.y(), ponto_inicio1.x() - ponto_fim1.x())))
                     angulo2 = abs(degrees(atan2(ponto_inicio2.y() - ponto_fim2.y(), ponto_inicio2.x() - ponto_fim2.x())))
                     dif_ang = abs(angulo1 - angulo2)
                     tolerancia_angulo = 1  # Ajuste conforme necessário
                     if dif_ang < tolerancia_angulo:
                         geometria_a_mesclar.append(geometry)
-
-            nova_geometria = QgsGeometry.unaryUnion(geometria_a_mesclar)
+                        #feedback.pushInfo(f'Aqui a geometria a mesclar tem que ter 2 elementos e tem {len(geometria_a_mesclar)}.')
+                        geometria_mesclada = QgsGeometry.unaryUnion(geometria_a_mesclar)
+                        geometria_a_mesclar = [geometria_mesclada]
+                        #feedback.pushInfo(f'Aqui a geometria a mesclar tem que ter 1 elementos e tem {len(geometria_a_mesclar)}.')
             nova_feature = QgsFeature()
-            nova_feature.setGeometry(nova_geometria)
+            nova_feature.setGeometry(geometria_mesclada)
             nova_feature.setAttributes([cont])
-            #feedback.pushInfo(f'{nova_geometria} é uma linha que quero.')
             mescladalayer.dataProvider().addFeatures([nova_feature])
             mescladalayer.updateExtents()
             cont += 1
         mescladalayer.updateExtents()
         QgsProject.instance().addMapLayer(mescladalayer)
-
+        
         #REMOÇÃO DE GEOMETRIAS DUPLICADAS
         if mescladalayer is None:
             raise QgsProcessingException(
@@ -323,6 +348,7 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
             )
         )
         self.removeFeatures(mescladalayer, flagLyr, multiStepFeedback)
+        
         #remoção de geometria dentro de outra
         outputlayer = QgsVectorLayer(f"LineString?crs={inputLyr.crs().authid()}",
                                 "outputlayer",
@@ -343,13 +369,58 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
                 nova_feature = QgsFeature()
                 nova_feature.setGeometry(geometria)
                 nova_feature.setAttributes([cont])
-                #feedback.pushInfo(f'{nova_geometria} é uma linha que quero.')
                 outputlayer.dataProvider().addFeatures([nova_feature])
                 outputlayer.updateExtents()
                 cont += 1
         outputlayer.updateExtents()
         QgsProject.instance().addMapLayer(outputlayer)
 
+        outputlayer2 = QgsVectorLayer(f"LineString?crs={inputLyr.crs().authid()}",
+                                "outputlayer2",
+                                "memory"
+                                )
+        outputlayer2.dataProvider().addAttributes([QgsField("id", QVariant.Int)])
+        cont = 1
+        for linhas in outputlayer.getFeatures():
+            geometria = linhas.geometry()
+            for line in outputlayer.getFeatures():
+                geometry = line.geometry()
+                if (linhas.id() != line.id()) and geometria.overlaps(geometry):
+                    geometria_a_mesclar = [geometria, geometry]
+                    geometria = QgsGeometry.unaryUnion(geometria_a_mesclar)
+            nova_feature = QgsFeature()
+            nova_feature.setGeometry(geometria)
+            nova_feature.setAttributes([cont])
+            outputlayer2.dataProvider().addFeatures([nova_feature])
+            outputlayer2.updateExtents()
+            cont += 1
+        outputlayer2.updateExtents()
+        QgsProject.instance().addMapLayer(outputlayer2)
+
+        #REMOÇÃO DE GEOMETRIAS DUPLICADAS
+        if outputlayer2 is None:
+            raise QgsProcessingException(
+                self.invalidSourceError(parameters, self.INPUT)
+            )
+        onlySelected = self.parameterAsBool(parameters, self.SELECTED, context)
+        multiStepFeedback = QgsProcessingMultiStepFeedback(2, feedback)
+        multiStepFeedback.setCurrentStep(0)
+        multiStepFeedback.pushInfo(
+            self.tr("Identifying duplicated geometries in layer {0}...").format(
+                inputLyr.name()
+            )
+        )
+        flagLyr = algRunner.runIdentifyDuplicatedGeometries(
+            outputlayer2, context, feedback=multiStepFeedback, onlySelected=onlySelected
+        )
+
+        multiStepFeedback.setCurrentStep(1)
+        multiStepFeedback.pushInfo(
+            self.tr("Removing duplicated geometries in layer {0}...").format(
+                outputlayer2.name()
+            )
+        )
+        self.removeFeatures(outputlayer2, flagLyr, multiStepFeedback)
         return {self.OUTPUT: inputLyr}
 
     def removeFeatures(self, inputLyr, flagLyr, feedback):
