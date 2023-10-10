@@ -185,7 +185,6 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
         )
 
         #IDENTIFICAÇÃO DE ARESTAS COM COMPRIMENTO MENOR QUE A TOLERÂNCIA
-    
         if inputLyr is None:
             return {self.OUTPUT: inputLyr, self.FLAGS: self.flag_id}
 
@@ -252,7 +251,7 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
                 diferencalayer.dataProvider().addFeature(feature)
                 diferencalayer.updateExtents()
                 cont += 1
-        QgsProject.instance().addMapLayer(diferencalayer)
+
         #REMOÇÃO DE GEOMETRIAS DUPLICADAS
         if diferencalayer is None:
             raise QgsProcessingException(
@@ -311,10 +310,8 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
                     tolerancia_angulo = 1  # Ajuste conforme necessário
                     if dif_ang < tolerancia_angulo:
                         geometria_a_mesclar.append(geometry)
-                        #feedback.pushInfo(f'Aqui a geometria a mesclar tem que ter 2 elementos e tem {len(geometria_a_mesclar)}.')
                         geometria_mesclada = QgsGeometry.unaryUnion(geometria_a_mesclar)
                         geometria_a_mesclar = [geometria_mesclada]
-                        #feedback.pushInfo(f'Aqui a geometria a mesclar tem que ter 1 elementos e tem {len(geometria_a_mesclar)}.')
             nova_feature = QgsFeature()
             nova_feature.setGeometry(geometria_mesclada)
             nova_feature.setAttributes([cont])
@@ -322,7 +319,6 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
             mescladalayer.updateExtents()
             cont += 1
         mescladalayer.updateExtents()
-        QgsProject.instance().addMapLayer(mescladalayer)
         
         #REMOÇÃO DE GEOMETRIAS DUPLICADAS
         if mescladalayer is None:
@@ -348,7 +344,6 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
             )
         )
         self.removeFeatures(mescladalayer, flagLyr, multiStepFeedback)
-        
         #remoção de geometria dentro de outra
         outputlayer = QgsVectorLayer(f"LineString?crs={inputLyr.crs().authid()}",
                                 "outputlayer",
@@ -373,7 +368,6 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
                 outputlayer.updateExtents()
                 cont += 1
         outputlayer.updateExtents()
-        QgsProject.instance().addMapLayer(outputlayer)
 
         outputlayer2 = QgsVectorLayer(f"LineString?crs={inputLyr.crs().authid()}",
                                 "outputlayer2",
@@ -396,7 +390,6 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
             cont += 1
         outputlayer2.updateExtents()
         QgsProject.instance().addMapLayer(outputlayer2)
-
         #REMOÇÃO DE GEOMETRIAS DUPLICADAS
         if outputlayer2 is None:
             raise QgsProcessingException(
