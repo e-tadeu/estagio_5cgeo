@@ -58,14 +58,14 @@ class Estagio5CGEOPlugin(object):
         QgsApplication.processingRegistry().addProvider(self.provider)
 
     def initGui(self):
-        #self.initProcessing()
+        self.initProcessing()
         icon = os.path.join(os.path.join(cmd_folder, '5cgeo.png'))
-        self.action = QAction(QIcon(icon), 'Load Basemap', self.iface.mainWindow())
+        self.action = QAction(QIcon(icon), 'Projetos Estágio 5CGEO', self.iface.mainWindow())
         self.iface.addToolBarIcon(self.action)
         self.action.triggered.connect(self.run)
 
     def unload(self):
-        #QgsApplication.processingRegistry().removeProvider(self.provider)
+        QgsApplication.processingRegistry().removeProvider(self.provider)
         self.iface.removeToolBarIcon(self.action)
         del self.action
 
