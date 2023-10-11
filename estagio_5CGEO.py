@@ -48,7 +48,7 @@ if cmd_folder not in sys.path:
 
 class Estagio5CGEOPlugin(object):
 
-    def __init__(self, iface):
+    def __init__(self):
         self.provider = None
 
     def initProcessing(self):
