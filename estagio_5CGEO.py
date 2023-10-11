@@ -34,6 +34,8 @@ __revision__ = '$Format:%H$'
 import os
 import sys
 import inspect
+from PyQt5.QtWidgets import QAction
+from PyQt5.QtGui import QIcon
 
 from qgis.core import QgsProcessingAlgorithm, QgsApplication
 from .estagio_5CGEO_provider import Estagio5CGEOProvider
@@ -46,8 +48,9 @@ if cmd_folder not in sys.path:
 
 class Estagio5CGEOPlugin(object):
 
-    def __init__(self):
+    def __init__(self, iface):
         self.provider = None
+        self.iface = iface
 
     def initProcessing(self):
         """Init Processing provider for QGIS >= 3.8."""
@@ -56,6 +59,15 @@ class Estagio5CGEOPlugin(object):
 
     def initGui(self):
         self.initProcessing()
+        icon = os.path.join(os.path.join(cmd_folder, '5cgeo.png'))
+        self.action = QAction(QIcon(icon), 'Load Projetos 5 CGEO', self.iface.mainWindow())
+        self.iface.addToolBarIcon(self.action)
+        self.action.triggered.connect(self.run)
 
     def unload(self):
         QgsApplication.processingRegistry().removeProvider(self.provider)
+        self.iface.removeToolBarIcon(self.action)
+        del self.action
+    
+    def run(self):
+        self.iface.messageBar().pushMessage('Hello from Plugin')
