@@ -37,4 +37,4 @@ def classFactory(iface):  # pylint: disable=invalid-name
     """
     #
     from .estagio_5CGEO import Estagio5CGEOPlugin
-    return Estagio5CGEOPlugin(iface)
+    return Estagio5CGEOPlugin()
