@@ -289,12 +289,13 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
             geometria = linha1.geometry()
             geometria_a_mesclar = [geometria]
             geometria_mesclada = geometria
+            bbox = geometria.boundingBox()
             for part in geometria.parts():
                 vertices = list(part)
                 ponto_inicio1 = QgsPointXY(QgsPointXY(vertices[0].x(), vertices[0].y()))
                 ponto_fim1 = QgsPointXY(QgsPointXY(vertices[-1].x(), vertices[-1].y()))
             
-            for linha2 in diferencalayer.getFeatures():
+            for linha2 in diferencalayer.getFeatures(bbox):
                 geometry = linha2.geometry()
                 if geometria.equals(geometry):
                     continue
@@ -354,7 +355,8 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
         for linhas in mescladalayer.getFeatures():
             geometria = linhas.geometry()
             flag = False
-            for line in mescladalayer.getFeatures():
+            bbox = geometria.boundingBox()
+            for line in mescladalayer.getFeatures(bbox):
                 geometry = line.geometry()
                 
                 feedback.pushInfo(f'{linhas} está sendo analisada.')
@@ -377,7 +379,8 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
         cont = 1
         for linhas in outputlayer.getFeatures():
             geometria = linhas.geometry()
-            for line in outputlayer.getFeatures():
+            bbox = geometria.boundingBox()
+            for line in outputlayer.getFeatures(bbox):
                 geometry = line.geometry()
                 if (linhas.id() != line.id()) and geometria.overlaps(geometry):
                     geometria_a_mesclar = [geometria, geometry]
