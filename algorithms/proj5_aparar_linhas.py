@@ -234,10 +234,12 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
                                      "diferença",
                                      "memory"
                                      )
-        diferencalayer.dataProvider().addAttributes([QgsField("id", QVariant.Int)])
-        cont = 1
+        fields = inputLyr.fields()
+        diferencalayer.dataProvider().addAttributes(fields)
+        diferencalayer.updateFields()
         for linhas in inputLyr.getFeatures():
             linegeometria = linhas.geometry()
+            lineattribute = linhas.attributes()
             flag = True
             for linhassoltas in danglelayer.getFeatures():
                 linesoltageometria = linhassoltas.geometry()
@@ -245,12 +247,11 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
                     flag = False
 
             if flag == True:
-                feature = QgsFeature()
+                feature = QgsFeature(fields)
                 feature.setGeometry(linegeometria)
-                feature.setAttributes([cont])
+                feature.setAttributes(lineattribute)
                 diferencalayer.dataProvider().addFeature(feature)
                 diferencalayer.updateExtents()
-                cont += 1
 
         #REMOÇÃO DE GEOMETRIAS DUPLICADAS
         if diferencalayer is None:
@@ -282,11 +283,11 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
                                      "mesclada",
                                      "memory"
                                      )
-        mescladalayer.dataProvider().addAttributes([QgsField("id", QVariant.Int)])
-
-        cont = 1
+        mescladalayer.dataProvider().addAttributes(fields)
+        mescladalayer.updateFields()
         for linha1 in diferencalayer.getFeatures():
             geometria = linha1.geometry()
+            atributos = linha1.attributes()
             geometria_a_mesclar = [geometria]
             geometria_mesclada = geometria
             bbox = geometria.boundingBox()
@@ -313,14 +314,12 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
                         geometria_a_mesclar.append(geometry)
                         geometria_mesclada = QgsGeometry.unaryUnion(geometria_a_mesclar)
                         geometria_a_mesclar = [geometria_mesclada]
-            nova_feature = QgsFeature()
+            nova_feature = QgsFeature(fields)
             nova_feature.setGeometry(geometria_mesclada)
-            nova_feature.setAttributes([cont])
+            nova_feature.setAttributes(atributos)
             mescladalayer.dataProvider().addFeatures([nova_feature])
             mescladalayer.updateExtents()
-            cont += 1
         mescladalayer.updateExtents()
-        
         #REMOÇÃO DE GEOMETRIAS DUPLICADAS
         if mescladalayer is None:
             raise QgsProcessingException(
@@ -350,47 +349,46 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
                                 "outputlayer",
                                 "memory"
                                 )
-        outputlayer.dataProvider().addAttributes([QgsField("id", QVariant.Int)])
-        cont = 1
+        outputlayer.dataProvider().addAttributes(fields)
+        outputlayer.updateFields()
         for linhas in mescladalayer.getFeatures():
             geometria = linhas.geometry()
+            atributos = linhas.attributes()
             flag = False
             bbox = geometria.boundingBox()
             for line in mescladalayer.getFeatures(bbox):
                 geometry = line.geometry()
-                
-                feedback.pushInfo(f'{linhas} está sendo analisada.')
+                #feedback.pushInfo(f'{linhas} está sendo analisada.')
                 if (linhas.id() != line.id()) and geometria.within(geometry): flag = True
                 
             if flag == False:
-                nova_feature = QgsFeature()
+                nova_feature = QgsFeature(fields)
                 nova_feature.setGeometry(geometria)
-                nova_feature.setAttributes([cont])
+                nova_feature.setAttributes(atributos)
                 outputlayer.dataProvider().addFeatures([nova_feature])
                 outputlayer.updateExtents()
-                cont += 1
         outputlayer.updateExtents()
 
         outputlayer2 = QgsVectorLayer(f"LineString?crs={inputLyr.crs().authid()}",
                                 "outputlayer2",
                                 "memory"
                                 )
-        outputlayer2.dataProvider().addAttributes([QgsField("id", QVariant.Int)])
-        cont = 1
+        outputlayer2.dataProvider().addAttributes(fields)
+        outputlayer2.updateFields()
         for linhas in outputlayer.getFeatures():
             geometria = linhas.geometry()
+            atributos = linhas.attributes()
             bbox = geometria.boundingBox()
             for line in outputlayer.getFeatures(bbox):
                 geometry = line.geometry()
                 if (linhas.id() != line.id()) and geometria.overlaps(geometry):
                     geometria_a_mesclar = [geometria, geometry]
                     geometria = QgsGeometry.unaryUnion(geometria_a_mesclar)
-            nova_feature = QgsFeature()
+            nova_feature = QgsFeature(fields)
             nova_feature.setGeometry(geometria)
-            nova_feature.setAttributes([cont])
+            nova_feature.setAttributes(atributos)
             outputlayer2.dataProvider().addFeatures([nova_feature])
             outputlayer2.updateExtents()
-            cont += 1
         outputlayer2.updateExtents()
         QgsProject.instance().addMapLayer(outputlayer2)
         #REMOÇÃO DE GEOMETRIAS DUPLICADAS
