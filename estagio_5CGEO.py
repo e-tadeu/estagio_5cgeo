@@ -34,7 +34,7 @@ __revision__ = '$Format:%H$'
 import os
 import sys
 import inspect
-from PyQt5.QtWidgets import QAction
+from PyQt5.QtWidgets import QAction, QMenu
 from PyQt5.QtGui import QIcon
 
 from qgis.core import QgsProcessingAlgorithm, QgsApplication
@@ -44,7 +44,6 @@ cmd_folder = os.path.split(inspect.getfile(inspect.currentframe()))[0]
 
 if cmd_folder not in sys.path:
     sys.path.insert(0, cmd_folder)
-
 
 class Estagio5CGEOPlugin(object):
 
