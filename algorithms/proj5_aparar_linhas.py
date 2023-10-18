@@ -348,51 +348,6 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
                 outputlayer.updateExtents()
         outputlayer.updateExtents()
         QgsProject.instance().addMapLayer(outputlayer)
-        outputlayer2 = QgsVectorLayer(f"LineString?crs={inputLyr.crs().authid()}",
-                                "outputlayer2",
-                                "memory"
-                                )
-        outputlayer2.dataProvider().addAttributes(fields)
-        outputlayer2.updateFields()
-        for linhas in outputlayer.getFeatures():
-            geometria = linhas.geometry()
-            atributos = linhas.attributes()
-            bbox = geometria.boundingBox()
-            for line in outputlayer.getFeatures(bbox):
-                geometry = line.geometry()
-                if (linhas.id() != line.id()) and geometria.overlaps(geometry):
-                    geometria_a_mesclar = [geometria, geometry]
-                    geometria = QgsGeometry.unaryUnion(geometria_a_mesclar)
-            nova_feature = QgsFeature(fields)
-            nova_feature.setGeometry(geometria)
-            nova_feature.setAttributes(atributos)
-            outputlayer2.dataProvider().addFeatures([nova_feature])
-            outputlayer2.updateExtents()
-        outputlayer2.updateExtents()
-        QgsProject.instance().addMapLayer(outputlayer2)
-        #REMOÇÃO DE GEOMETRIAS DUPLICADAS
-        if outputlayer2 is None:
-            raise QgsProcessingException(
-                self.invalidSourceError(parameters, self.INPUT)
-            )
-        multiStepFeedback = QgsProcessingMultiStepFeedback(2, feedback)
-        multiStepFeedback.setCurrentStep(0)
-        multiStepFeedback.pushInfo(
-            self.tr("Identifying duplicated geometries in layer {0}...").format(
-                inputLyr.name()
-            )
-        )
-        flagLyr = algRunner.runIdentifyDuplicatedGeometries(
-            outputlayer2, context, feedback=multiStepFeedback, onlySelected=False
-        )
-
-        multiStepFeedback.setCurrentStep(1)
-        multiStepFeedback.pushInfo(
-            self.tr("Removing duplicated geometries in layer {0}...").format(
-                outputlayer2.name()
-            )
-        )
-        self.removeFeatures(outputlayer2, flagLyr, multiStepFeedback)
         return {self.OUTPUT: inputLyr}
 
     def removeFeatures(self, inputLyr, flagLyr, feedback):
