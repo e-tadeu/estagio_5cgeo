@@ -72,11 +72,9 @@ from math import atan2, degrees
 
 class Projeto5Solucao(QgsProcessingAlgorithm):
     INPUT = "INPUT"
-    SELECTED = "SELECTED"
     TOLERANCE = "TOLERANCE"
     MIN_LENGTH = "MIN_LENGTH"
     OUTPUT = "OUTPUT"
-    FLAGS = "FLAGS"
 
     def initAlgorithm(self, config):
         """
@@ -85,11 +83,6 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterVectorLayer(
                 self.INPUT, self.tr("Input layer"), [QgsProcessing.TypeVectorLine]
-            )
-        )
-        self.addParameter(
-            QgsProcessingParameterBoolean(
-                self.SELECTED, self.tr("Process only selected features")
             )
         )
         self.addParameter(
@@ -115,12 +108,6 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
                 self.OUTPUT, self.tr("Original layer with overlayed lines")
             )
         )
-        self.addParameter(
-            QgsProcessingParameterFeatureSink(
-                self.FLAGS, self.tr("{0} Flags").format(self.displayName())
-            )
-        )
-        
 
     def processAlgorithm(self, parameters, context, feedback):
         """
@@ -129,10 +116,9 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
         layerHandler = LayerHandler()
         algRunner = AlgRunner()
         inputLyr = self.parameterAsVectorLayer(parameters, self.INPUT, context)
-        onlySelected = self.parameterAsBool(parameters, self.SELECTED, context)
+        onlySelected = True
         minLength = self.parameterAsDouble(parameters, self.MIN_LENGTH, context)
         tol = self.parameterAsDouble(parameters, self.TOLERANCE, context)
-        self.prepareFlagSink(parameters, inputLyr, QgsWkbTypes.LineString, context)
 
         multiStepFeedback = QgsProcessingMultiStepFeedback(4, feedback)
         multiStepFeedback.setCurrentStep(0)
@@ -186,11 +172,11 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
 
         #IDENTIFICAÇÃO DE ARESTAS COM COMPRIMENTO MENOR QUE A TOLERÂNCIA
         if inputLyr is None:
-            return {self.OUTPUT: inputLyr, self.FLAGS: self.flag_id}
+            return {self.OUTPUT: inputLyr}
 
         nDangles = dangleLyr.featureCount()
         if nDangles == 0:
-            return {self.OUTPUT: inputLyr, self.FLAGS: self.flag_id}
+            return {self.OUTPUT: inputLyr}
 
         danglelayer = QgsVectorLayer(f"LineString?crs={inputLyr.crs().authid()}",
                                      "arestas_soltas",
@@ -220,15 +206,8 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
             danglelayer.dataProvider().addFeature(feature)
             danglelayer.updateExtents()
             cont += 1
-            self.flagFeature(
-                lineGeometry,
-                self.tr(
-                    f"First order dangle on {inputLyr.name()} smaller than {minLength}"
-                ),
-            )
-
             multiStepFeedback.setProgress(current * currentTotal)
-        
+
         #OBTENÇÃO DA DIFERENÇA ENTRE GEOMETRIAS (INPUT E ARESTAS SOLTAS)
         diferencalayer = QgsVectorLayer(f"LineString?crs={inputLyr.crs().authid()}",
                                      "diferença",
@@ -258,7 +237,6 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
             raise QgsProcessingException(
                 self.invalidSourceError(parameters, self.INPUT)
             )
-        onlySelected = self.parameterAsBool(parameters, self.SELECTED, context)
         multiStepFeedback = QgsProcessingMultiStepFeedback(2, feedback)
         multiStepFeedback.setCurrentStep(0)
         multiStepFeedback.pushInfo(
@@ -267,7 +245,7 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
             )
         )
         flagLyr = algRunner.runIdentifyDuplicatedGeometries(
-            diferencalayer, context, feedback=multiStepFeedback, onlySelected=onlySelected
+            diferencalayer, context, feedback=multiStepFeedback, onlySelected=False
         )
 
         multiStepFeedback.setCurrentStep(1)
@@ -320,12 +298,12 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
             mescladalayer.dataProvider().addFeatures([nova_feature])
             mescladalayer.updateExtents()
         mescladalayer.updateExtents()
+
         #REMOÇÃO DE GEOMETRIAS DUPLICADAS
         if mescladalayer is None:
             raise QgsProcessingException(
                 self.invalidSourceError(parameters, self.INPUT)
             )
-        onlySelected = self.parameterAsBool(parameters, self.SELECTED, context)
         multiStepFeedback = QgsProcessingMultiStepFeedback(2, feedback)
         multiStepFeedback.setCurrentStep(0)
         multiStepFeedback.pushInfo(
@@ -334,7 +312,7 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
             )
         )
         flagLyr = algRunner.runIdentifyDuplicatedGeometries(
-            mescladalayer, context, feedback=multiStepFeedback, onlySelected=onlySelected
+            mescladalayer, context, feedback=multiStepFeedback, onlySelected=False
         )
 
         multiStepFeedback.setCurrentStep(1)
@@ -356,11 +334,12 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
             atributos = linhas.attributes()
             flag = False
             bbox = geometria.boundingBox()
+            
             for line in mescladalayer.getFeatures(bbox):
                 geometry = line.geometry()
                 #feedback.pushInfo(f'{linhas} está sendo analisada.')
                 if (linhas.id() != line.id()) and geometria.within(geometry): flag = True
-                
+            
             if flag == False:
                 nova_feature = QgsFeature(fields)
                 nova_feature.setGeometry(geometria)
@@ -368,7 +347,7 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
                 outputlayer.dataProvider().addFeatures([nova_feature])
                 outputlayer.updateExtents()
         outputlayer.updateExtents()
-
+        QgsProject.instance().addMapLayer(outputlayer)
         outputlayer2 = QgsVectorLayer(f"LineString?crs={inputLyr.crs().authid()}",
                                 "outputlayer2",
                                 "memory"
@@ -396,7 +375,6 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
             raise QgsProcessingException(
                 self.invalidSourceError(parameters, self.INPUT)
             )
-        onlySelected = self.parameterAsBool(parameters, self.SELECTED, context)
         multiStepFeedback = QgsProcessingMultiStepFeedback(2, feedback)
         multiStepFeedback.setCurrentStep(0)
         multiStepFeedback.pushInfo(
@@ -405,7 +383,7 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
             )
         )
         flagLyr = algRunner.runIdentifyDuplicatedGeometries(
-            outputlayer2, context, feedback=multiStepFeedback, onlySelected=onlySelected
+            outputlayer2, context, feedback=multiStepFeedback, onlySelected=False
         )
 
         multiStepFeedback.setCurrentStep(1)
@@ -441,7 +419,7 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
         inputLyr.deleteFeatures(list(removeSet))
         inputLyr.endEditCommand()
         
-        return {self.OUTPUT: inputLyr, self.FLAGS: self.flag_id} 
+        return {self.OUTPUT: inputLyr}
 
     def name(self):
         """
