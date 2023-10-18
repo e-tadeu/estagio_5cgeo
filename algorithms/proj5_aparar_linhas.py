@@ -232,30 +232,6 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
                 diferencalayer.dataProvider().addFeature(feature)
                 diferencalayer.updateExtents()
 
-        #REMOÇÃO DE GEOMETRIAS DUPLICADAS
-        if diferencalayer is None:
-            raise QgsProcessingException(
-                self.invalidSourceError(parameters, self.INPUT)
-            )
-        multiStepFeedback = QgsProcessingMultiStepFeedback(2, feedback)
-        multiStepFeedback.setCurrentStep(0)
-        multiStepFeedback.pushInfo(
-            self.tr("Identifying duplicated geometries in layer {0}...").format(
-                inputLyr.name()
-            )
-        )
-        flagLyr = algRunner.runIdentifyDuplicatedGeometries(
-            diferencalayer, context, feedback=multiStepFeedback, onlySelected=False
-        )
-
-        multiStepFeedback.setCurrentStep(1)
-        multiStepFeedback.pushInfo(
-            self.tr("Removing duplicated geometries in layer {0}...").format(
-                diferencalayer.name()
-            )
-        )
-        self.removeFeatures(diferencalayer, flagLyr, multiStepFeedback)
-
         #MERGE DE LINHAS QUE SE TOCAM DE FORMA A VOLTAR CONFORME ORIGINAL
         mescladalayer = QgsVectorLayer(f"LineString?crs={inputLyr.crs().authid()}",
                                      "mesclada",
