@@ -22,3 +22,6 @@ https://docs.qgis.org/3.28/pt_BR/docs/pyqgis_developer_cookbook/plugins/plugins.
 
 https://github.com/dsgoficial/Ferramentas_Producao/blob/0e806b63c765e99006b4ede4689c2613d4af371e/modules/qgis/mapFunctions/closeLine.py#L7
 https://github.com/dsgoficial/Ferramentas_Producao/blob/0e806b63c765e99006b4ede4689c2613d4af371e/controllers/prodToolsSettingsCtrl.py#L184
+
+# Link da gravação
+https://drive.google.com/file/d/1BSLmq2G2eHrLolhKQtdgTU5tMd8wEZ5A/view?ts=651182e8&pli=1
