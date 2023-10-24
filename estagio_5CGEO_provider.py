@@ -38,7 +38,7 @@ from .algorithms.proj3_suavizar_linhas import Projeto3Solucao
 from .algorithms.proj4_fechar_linhas import Projeto4Solucao
 from .algorithms.proj5_aparar_linhas import Projeto5Solucao
 from .algorithms.proj6_expandir_linhas import Projeto6Solucao
-from .algorithms.proj6_unificar_linhas_paralelas import Projeto7Solucao
+from .algorithms.proj7_unificar_linhas_paralelas import Projeto7Solucao
 
 
 class Estagio5CGEOProvider(QgsProcessingProvider):

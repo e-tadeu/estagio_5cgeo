@@ -80,45 +80,19 @@ class Projeto7Solucao(QgsProcessingAlgorithm):
     # calling from the QGIS console.
 
     # Camadas de input
-    CURVAS = 'CURVAS'
-    DRENAGEM = 'DRENAGEM'
     VIAS = 'VIAS'
-    ENERGIA = 'ENERGIA'
-    DISTANCIA = 'DISTANCIA'
-    MOLDURA = 'MOLDURA'
 
     # Camadas de output
     OUTPUT = 'OUTPUT'
 
     def initAlgorithm(self, config):
-
-        self.addParameter(QgsProcessingParameterVectorLayer(self.DRENAGEM, self.tr('Insira a camada de drenagem'), 
-                                                            types=[QgsProcessing.TypeVectorLine], 
-                                                            defaultValue=None))
         
         self.addParameter(QgsProcessingParameterVectorLayer(self.VIAS, self.tr('Insira a camada de rodovias'), 
                                                             types=[QgsProcessing.TypeVectorLine], 
                                                             defaultValue=None))
 
-        self.addParameter(QgsProcessingParameterVectorLayer(self.ENERGIA, self.tr('Insira a camada de linhas de energia'), 
-                                                            types=[QgsProcessing.TypeVectorLine], 
-                                                            defaultValue=None))
-
-        self.addParameter(QgsProcessingParameterVectorLayer(self.CURVAS, self.tr('Insira as curvas de nível'), 
-                                                            types=[QgsProcessing.TypeVectorLine], 
-                                                            defaultValue=None))
-        
-        self.addParameter(QgsProcessingParameterVectorLayer(self.MOLDURA, self.tr('Insira a moldura'), 
-                                                            types=[QgsProcessing.TypeVectorPolygon], 
-                                                            defaultValue=None))
-                        
-        self.addParameter(QgsProcessingParameterNumber(self.DISTANCIA,
-                                                       self.tr('Insira a distância de busca'),
-                                                       defaultValue=0.01,
-                                                       type=QgsProcessingParameterNumber.Double))
-
-        self.addParameter(QgsProcessingParameterFeatureSink(self.OUTPUT, self.tr('Erros'), 
-                                                            type=QgsProcessing.TypeVectorPoint, 
+        self.addParameter(QgsProcessingParameterFeatureSink(self.OUTPUT, self.tr('Vias unificadas'), 
+                                                            type=QgsProcessing.TypeVectorLine, 
                                                             createByDefault=True, 
                                                             supportsAppend=True, 
                                                             defaultValue='TEMPORARY_OUTPUT'))
@@ -128,18 +102,12 @@ class Projeto7Solucao(QgsProcessingAlgorithm):
         """
         Here is where the processing itself takes place.
         """
-        drenagem = self.parameterAsVectorLayer(parameters,self.DRENAGEM,context)
         vias = self.parameterAsVectorLayer(parameters,self.VIAS,context)
-        energia = self.parameterAsVectorLayer(parameters,self.ENERGIA,context)
-        curvas = self.parameterAsVectorLayer(parameters,self.CURVAS,context)
-        moldura = self.parameterAsVectorLayer(parameters,self.MOLDURA,context)
-        distancia = self.parameterAsDouble(parameters,self.DISTANCIA,context)
 
         #Criação da camada de saída do tipo ponto com o tipo de erro
         fields = QgsFields()
-        fields.append(QgsField("tipo_erro", QVariant.String))
         (output_sink, output_dest_id) = self.parameterAsSink(parameters,self.OUTPUT,context,
-                                                             fields,1,drenagem.sourceCrs())
+                                                             fields,1,vias.sourceCrs())
 
         #Criação de uma camada de linhas de interseção entre os produtos
         intersecoes = list()
