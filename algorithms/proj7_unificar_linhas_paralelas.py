@@ -235,7 +235,7 @@ class Projeto7Solucao(QgsProcessingAlgorithm):
         lowercase alphanumeric characters only and no spaces or other
         formatting characters.
         """
-        return 'Expandir linhas'
+        return 'Unificar linhas'
 
     def displayName(self):
         """
@@ -249,7 +249,7 @@ class Projeto7Solucao(QgsProcessingAlgorithm):
         Returns the name of the group this algorithm belongs to. This string
         should be localised.
         """
-        return 'Expandir linhas'
+        return 'Unificar linhas'
 
     """def groupId(self):
         
@@ -265,4 +265,4 @@ class Projeto7Solucao(QgsProcessingAlgorithm):
         return QCoreApplication.translate('Processing', string)
 
     def createInstance(self):
-        return Projeto6Solucao()
+        return Projeto7Solucao()
