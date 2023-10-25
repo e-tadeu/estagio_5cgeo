@@ -106,27 +106,62 @@ class Projeto7Solucao(QgsProcessingAlgorithm):
 
         #Criação da camada de saída do tipo ponto com o tipo de erro
         fields = QgsFields()
-        (output_sink, output_dest_id) = self.parameterAsSink(parameters,self.OUTPUT,context,
-                                                             fields,1,vias.sourceCrs())
+        (output_sink, output_dest_id) = self.parameterAsSink(parameters,
+                                                            self.OUTPUT,
+                                                            context,
+                                                            fields,
+                                                            1,
+                                                            vias.sourceCrs())
 
-        #Criação de uma camada de linhas de interseção entre os produtos
-        intersecoes = list()
-        for molduras in moldura.getFeatures():
-            geometryMoldura = molduras.geometry()
-            idMoldura = molduras.id()
-            
-            for mold in moldura.getFeatures():
-                geometryMold = mold.geometry()
-                idMold = mold.id()
+        #Criação de uma camada de linhas a partir de uma de multilinhas
+        """
+        linelayer = QgsVectorLayer(f"LineString?crs={vias.crs().authid()}",
+                                     "linelayer",
+                                     "memory"
+                                     )
+        linelayer.dataProvider().addAttributes(fields)
+        linelayer.updateFields()
+        for line_id, line in enumerate(vias.asMultiPolyline()):
+            line_geometry = QgsGeometry.fromPolyline(line)
+            feature = QgsFeature(fields)
+            feature.setGeometry(line_geometry)
+            feature.setAttributes(line.attributes())
+            linelayer.dataProvider().addFeatures([feature])
+            linelayer.updateExtents()
+        QgsProject.instance().addMapLayer(linelayer)
+        """
+        new_geometries = []
 
-                if idMoldura != idMold:
-                    if geometryMoldura.touches(geometryMold):
-                        linha = geometryMoldura.intersection(geometryMold)
-                        tipo = linha.type() #Está retornando 1 ou 0, sendo 1 para MultiLineString e 0 para Point
+        # Itere sobre as features da camada
+        for feature in vias.getFeatures():
+            multi_line = feature.geometry()
+            multi_line = multi_line.wkbType()
+            feedback.pushInfo(f'\nA linha {multi_line} é do tipo {type(multi_line)}.')
+            # Verifique se a geometria é uma MultiLineString
+            #if multi_line.type() == QgsWkbTypes.MultiLineString:
+                # Converta a MultiLineString em uma LineString
+            for line in multi_line.asMultiPolyline():
+                line_string = QgsGeometry.fromPolyline(line)
+                new_geometries.append(line_string)
 
-                        if tipo == 1:
-                            intersecoes.append(linha)
-
+        # Atualize as geometrias das features
+        for feature, new_geometry in zip(vias.getFeatures(), new_geometries):
+            vias.changeGeometry(feature.id(), new_geometry)
+        
+        for linhas in vias.getFeatures():
+            geomline = linhas.geometry()
+       
+            for parts in geomline.parts(): vertices = list(parts)
+            feedback.pushInfo(f'\nA linha {geomline} contém os seguintes vértices {vertices} do tipo {type(geomline)}.')
+        """
+            startpoint = vertices[0]
+            endpoint = vertices[-1]
+            #feedback.pushInfo(f'\nA linha {geomline} contém o ponto inicial {startpoint} e ponto final {endpoint} e são do tipo {type(startpoint)}.')
+            coeficientes = QgsGeometryUtils.coefficients(startpoint, endpoint) #o terceiro elemento da tupla é a Constante da equação
+            gradiente = QgsGeometryUtils.gradient(startpoint,endpoint)
+            feedback.pushInfo(f'\nA linha {geomline} contém a constante {coeficientes[2]} e gradiente {gradiente}.')
+        """
+        """
         #Eliminação de linhas de contato duplicadas entre produtos
         unique_intersecoes = list()
         for i in intersecoes:
@@ -224,7 +259,7 @@ class Projeto7Solucao(QgsProcessingAlgorithm):
                         novo_feat.setGeometry(ponto_final)
                         novo_feat.setAttribute(0, 'geometria desconectada')
                         output_sink.addFeature(novo_feat)
-                   
+        """
         return {self.OUTPUT: output_dest_id}
 
     def name(self):
