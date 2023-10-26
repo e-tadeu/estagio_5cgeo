@@ -67,7 +67,6 @@ from qgis.core import (QgsProcessing,
 import processing
 from PyQt5.QtGui import QColor
 
-
 class Projeto7Solucao(QgsProcessingAlgorithm):
     """
     
@@ -105,161 +104,106 @@ class Projeto7Solucao(QgsProcessingAlgorithm):
         vias = self.parameterAsVectorLayer(parameters,self.VIAS,context)
 
         #Criação da camada de saída do tipo ponto com o tipo de erro
-        fields = QgsFields()
+        fields = vias.fields()
         (output_sink, output_dest_id) = self.parameterAsSink(parameters,
                                                             self.OUTPUT,
                                                             context,
                                                             fields,
-                                                            1,
+                                                            2, #2 é para tipo linha, 1 é para tipo ponto
                                                             vias.sourceCrs())
 
-        #Criação de uma camada de linhas a partir de uma de multilinhas
-        """
-        linelayer = QgsVectorLayer(f"LineString?crs={vias.crs().authid()}",
-                                     "linelayer",
-                                     "memory"
-                                     )
-        linelayer.dataProvider().addAttributes(fields)
-        linelayer.updateFields()
-        for line_id, line in enumerate(vias.asMultiPolyline()):
-            line_geometry = QgsGeometry.fromPolyline(line)
-            feature = QgsFeature(fields)
-            feature.setGeometry(line_geometry)
-            feature.setAttributes(line.attributes())
-            linelayer.dataProvider().addFeatures([feature])
-            linelayer.updateExtents()
-        QgsProject.instance().addMapLayer(linelayer)
-        """
-        new_geometries = []
-
-        # Itere sobre as features da camada
-        for feature in vias.getFeatures():
-            multi_line = feature.geometry()
-            multi_line = multi_line.wkbType()
-            feedback.pushInfo(f'\nA linha {multi_line} é do tipo {type(multi_line)}.')
-            # Verifique se a geometria é uma MultiLineString
-            #if multi_line.type() == QgsWkbTypes.MultiLineString:
-                # Converta a MultiLineString em uma LineString
-            for line in multi_line.asMultiPolyline():
-                line_string = QgsGeometry.fromPolyline(line)
-                new_geometries.append(line_string)
-
-        # Atualize as geometrias das features
-        for feature, new_geometry in zip(vias.getFeatures(), new_geometries):
-            vias.changeGeometry(feature.id(), new_geometry)
-        
         for linhas in vias.getFeatures():
             geomline = linhas.geometry()
-       
             for parts in geomline.parts(): vertices = list(parts)
-            feedback.pushInfo(f'\nA linha {geomline} contém os seguintes vértices {vertices} do tipo {type(geomline)}.')
-        """
             startpoint = vertices[0]
-            endpoint = vertices[-1]
-            #feedback.pushInfo(f'\nA linha {geomline} contém o ponto inicial {startpoint} e ponto final {endpoint} e são do tipo {type(startpoint)}.')
+            endpoint = vertices[1]
             coeficientes = QgsGeometryUtils.coefficients(startpoint, endpoint) #o terceiro elemento da tupla é a Constante da equação
+            constante = coeficientes[2]/coeficientes[1] #Divide a Constante pela coeficiente de y (a/b x + y + c/b = 0)
             gradiente = QgsGeometryUtils.gradient(startpoint,endpoint)
-            feedback.pushInfo(f'\nA linha {geomline} contém a constante {coeficientes[2]} e gradiente {gradiente}.')
-        """
-        """
-        #Eliminação de linhas de contato duplicadas entre produtos
-        unique_intersecoes = list()
-        for i in intersecoes:
-            is_duplicate = False
-            for j in unique_intersecoes:
-                if i.equals(j) or i.contains(j):
-                    is_duplicate = True
-                    break
-            if not is_duplicate:
-                unique_intersecoes.append(i)
+            #comprimento = geomline.lenght()
+            #feedback.pushInfo(f'\nA linha {geomline} contém a constante {coeficientes[2]} e gradiente {gradiente}.')
 
-        #Criação das áreas de busca
-        areas = list()
-        for i in unique_intersecoes:
-            area_busca = i.buffer(distancia, 8)
-            areas.append(area_busca)
-
-        for area in areas:
-            #VERIFICAÇÃO DOS ERROS POR ATRIBUTO
-            #Vericação de atributos sobre as linhas de drenagem
-            bbox = area.boundingBox()
-            for linhas in drenagem.getFeatures(bbox):
-                geometryLinhas = linhas.geometry()
-                nome = str(linhas.attributes()[2])
-                if nome == 'NULL': continue
-
-                for line in drenagem.getFeatures(bbox):
-                    geometryLine = line.geometry()
-                    name = str(line.attributes()[2])
-                    if name == 'NULL': continue
-                    
-                    if nome != name and nome in name:
-                        if geometryLinhas.touches(geometryLine):
-                            p = geometryLinhas.intersection(geometryLine).asPoint()
-                            p = QgsGeometry.fromPointXY(p)
-                            if not geometryLinhas.contains(p):
-                                feedback.pushInfo(f"O ponto {p} é o toque de {nome} com {name}.")
-                                novo_feat = QgsFeature(fields)
-                                novo_feat.setGeometry(p)
-                                novo_feat.setAttribute(0, 'atributos distintos')
-                                output_sink.addFeature(novo_feat)
+            #Criação de uma área de busca que dista 9,5 metros da linha com 8 vértices no arredondamento
+            area_busca = geomline.buffer(9.5, 8)
+            bbox = area_busca.boundingBox()
+        #feedback.pushInfo(f'\nA área de busca {area_busca} é do tipo {type(area_busca)}.')
+        #feedback.pushInfo(f'\nO bounding box {bbox} é do tipo {type(bbox)}.')
         
-            #VERIFICAÇÃO DAS GEOMETRIAS DESCONECTADAS
-            #Verificação sobre as curvas de nível
-            for linha in curvas.getFeatures(bbox):
-                geometryLinhas = linha.geometry()
-                for part in geometryLinhas.parts():
-                    vertices = list(part)
-                ponto_inicial = QgsGeometry.fromPointXY(QgsPointXY(vertices[0].x(), vertices[0].y()))
-                ponto_final = QgsGeometry.fromPointXY(QgsPointXY(vertices[-1].x(), vertices[-1].y()))
+            for line in vias.getFeatures(bbox):
+                geomline2 = line.geometry()
+                atributos = line.attributes()
+                if geomline.equals(geomline2) or geomline2.disjoint(area_busca): continue
+                #feedback.pushInfo(f'\nA linha {geomline} são diferentes {geomline2}.')
+                
+                for parts in geomline2.parts(): vertices = list(parts)
+                startpoint2 = vertices[0]
+                endpoint2 = vertices[1]
+                coeficientes2 = QgsGeometryUtils.coefficients(startpoint2, endpoint2) #o terceiro elemento da tupla é a Constante da equação
+                constante2 = coeficientes2[2]/coeficientes2[1] 
+                gradiente2 = QgsGeometryUtils.gradient(startpoint2,endpoint2)
+                #comprimento2 = geomline2.lenght()
 
-                #Caso da curva de nível que intersepta a área de busca
-                if geometryLinhas.within(area) or (geometryLinhas.intersects(area) and area.contains(ponto_inicial)) or (geometryLinhas.intersects(area) and area.contains(ponto_final)):
-                    flag_i = True
-                    flag_f = True
-                    for line in curvas.getFeatures(bbox):
-                        geometryLine = line.geometry()
-                        if not (geometryLinhas.equals(geometryLine)):
-                            if ponto_inicial.touches(geometryLine) or ponto_inicial.within(geometryLine): flag_i = False
-                            if ponto_final.touches(geometryLine) or ponto_final.within(geometryLine): flag_f = False
-                    if flag_i == True and area.contains(ponto_inicial):
-                        novo_feat = QgsFeature(fields)
-                        novo_feat.setGeometry(ponto_inicial)
-                        novo_feat.setAttribute(0, 'geometria desconectada')
-                        output_sink.addFeature(novo_feat)
-                    if flag_f == True and area.contains(ponto_final):
-                        novo_feat = QgsFeature(fields)
-                        novo_feat.setGeometry(ponto_final)
-                        novo_feat.setAttribute(0, 'geometria desconectada')
-                        output_sink.addFeature(novo_feat)
+                #Verificação pelos gradientes se provavelmente são de mesma via.
+                flag = False
+                dif = abs(gradiente-gradiente2)
+                if dif <= 0.01: flag = True #tolerância de 1 centésimo
 
-            #Verificação sobre as linhas de energia
-            for linhas in energia.getFeatures(bbox):
-                geometryLinhas = linhas.geometry()
-                for part in geometryLinhas.parts():
-                    vertices = list(part)
-                ponto_inicial = QgsGeometry.fromPointXY(QgsPointXY(vertices[0].x(), vertices[0].y()))
-                ponto_final = QgsGeometry.fromPointXY(QgsPointXY(vertices[-1].x(), vertices[-1].y()))
+                #dif = abs(constante-constante2)
+                #if dif >= 2: flag = True #tolerância de 1 centésimo
+                    
+                if flag == True:
+                    #Ponto 1
+                    x_media = (startpoint.x() + endpoint2.x())/2
+                    y_media = (startpoint.y() + endpoint2.y())/2
+                    p_1 = QgsPoint(x_media, y_media)
 
-                if (geometryLinhas.intersects(area) and area.contains(ponto_inicial)) or (geometryLinhas.intersects(area) and area.contains(ponto_final)):
-                    flag_i = True
-                    flag_f = True
-                    for line in energia.getFeatures(bbox):
-                        geometryLine = line.geometry()
-                        if not (geometryLinhas.equals(geometryLine)):
-                            if ponto_inicial.touches(geometryLine) or ponto_inicial.within(geometryLine): flag_i = False
-                            if ponto_final.touches(geometryLine) or ponto_final.within(geometryLine): flag_f = False
-                    if flag_i == True and area.contains(ponto_inicial):
-                        novo_feat = QgsFeature(fields)
-                        novo_feat.setGeometry(ponto_inicial)
-                        novo_feat.setAttribute(0, 'geometria desconectada')
-                        output_sink.addFeature(novo_feat)
-                    if flag_f == True and area.contains(ponto_final):
-                        novo_feat = QgsFeature(fields)
-                        novo_feat.setGeometry(ponto_final)
-                        novo_feat.setAttribute(0, 'geometria desconectada')
-                        output_sink.addFeature(novo_feat)
-        """
+                    #Ponto 2
+                    x_media = (endpoint.x() + startpoint2.x())/2
+                    y_media = (endpoint.y() + startpoint2.y())/2
+                    p_2 = QgsPoint(x_media, y_media)
+
+                    # Criação da linha média
+                    newline = QgsGeometry.fromPolyline([p_1, p_2])
+
+                    # Comprimento da extensão desejada (4,5 metros)
+                    extensao = 4.5  # metros
+
+                    # Calcula o vetor direção da linha
+                    ponto_inicial = QgsPoint(newline.asPolyline()[0])
+                    ponto_final = QgsPoint(newline.asPolyline()[-1])
+                    vetor_direcao = ponto_final - ponto_inicial
+
+                    # Calcula o comprimento do vetor direção
+                    comprimento_vetor = (vetor_direcao.x()**2 + vetor_direcao.y()**2)**0.5
+
+                    # Normaliza o vetor direção
+                    if comprimento_vetor > 0:
+                        vetor_direcao = QgsPoint(vetor_direcao.x() / comprimento_vetor, vetor_direcao.y() / comprimento_vetor)
+                    else:
+                        # Lida com o caso em que o vetor direção é uma linha de comprimento zero
+                        # Você pode adotar uma abordagem diferente se necessário
+                        print("A linha tem comprimento zero")
+
+                   # Extende a linha no início e no final
+                    ponto_inicial_extendido = QgsPoint(ponto_inicial.x() - extensao * vetor_direcao.x(), ponto_inicial.y() - extensao * vetor_direcao.y())
+                    ponto_final_extendido = QgsPoint(ponto_final.x() + extensao * vetor_direcao.x(), ponto_final.y() + extensao * vetor_direcao.y())
+
+                    linha_extendida = QgsGeometry.fromPolyline([ponto_inicial_extendido, ponto_final_extendido])
+
+
+                    feature = QgsFeature(fields)
+                    feature.setGeometry(linha_extendida)
+                    feature.setAttributes(atributos)
+                    output_sink.addFeatures([feature])
+
+                #feedback.pushInfo(f'\nA linha {geomline} de gradiente {gradiente} e a linha {geomline2} de gradiente {gradiente2} provavelmente são da mesma via. Uma possui a constante {constante} e a outra possui a constante {constante2}.')
+                #Verificação das constantes das vias. Caso tenham constante próximas, provavelmente estão na mesma equação de reta, ou seja, não quero.
+
+
+
+                #feedback.pushInfo(f'\nA linha {geomline} contém a constante {coeficientes[2]} e gradiente {gradiente}\n a {geomline2} contém a constante {coeficientes2[2]} e gradiente {gradiente2}.')
+
+        
         return {self.OUTPUT: output_dest_id}
 
     def name(self):
