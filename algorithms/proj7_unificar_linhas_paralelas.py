@@ -73,14 +73,8 @@ class Projeto7Solucao(QgsProcessingAlgorithm):
     Este algoritmo realiza a revisão de ligação entre produtos.
 
     """
-
-    # Constants used to refer to parameters and outputs. They will be
-    # used when calling the algorithm from another algorithm, or when
-    # calling from the QGIS console.
-
     # Camadas de input
     VIAS = 'VIAS'
-
     # Camadas de output
     OUTPUT = 'OUTPUT'
 
@@ -118,16 +112,13 @@ class Projeto7Solucao(QgsProcessingAlgorithm):
             startpoint = vertices[0]
             endpoint = vertices[1]
             coeficientes = QgsGeometryUtils.coefficients(startpoint, endpoint) #o terceiro elemento da tupla é a Constante da equação
-            constante = coeficientes[2]/coeficientes[1] #Divide a Constante pela coeficiente de y (a/b x + y + c/b = 0)
+            constante = coeficientes[0]/coeficientes[1] #Divide o coeficiente de x pelo coeficiente de y (a/b x + y + c/b = 0)
             gradiente = QgsGeometryUtils.gradient(startpoint,endpoint)
-            #comprimento = geomline.lenght()
             #feedback.pushInfo(f'\nA linha {geomline} contém a constante {coeficientes[2]} e gradiente {gradiente}.')
 
             #Criação de uma área de busca que dista 9,5 metros da linha com 8 vértices no arredondamento
             area_busca = geomline.buffer(9.5, 8)
             bbox = area_busca.boundingBox()
-        #feedback.pushInfo(f'\nA área de busca {area_busca} é do tipo {type(area_busca)}.')
-        #feedback.pushInfo(f'\nO bounding box {bbox} é do tipo {type(bbox)}.')
         
             for line in vias.getFeatures(bbox):
                 geomline2 = line.geometry()
@@ -139,34 +130,46 @@ class Projeto7Solucao(QgsProcessingAlgorithm):
                 startpoint2 = vertices[0]
                 endpoint2 = vertices[1]
                 coeficientes2 = QgsGeometryUtils.coefficients(startpoint2, endpoint2) #o terceiro elemento da tupla é a Constante da equação
-                constante2 = coeficientes2[2]/coeficientes2[1] 
+                constante2 = coeficientes2[0]/coeficientes2[1] 
                 gradiente2 = QgsGeometryUtils.gradient(startpoint2,endpoint2)
-                #comprimento2 = geomline2.lenght()
 
                 #Verificação pelos gradientes se provavelmente são de mesma via.
                 flag = False
-                dif = abs(gradiente-gradiente2)
-                if dif <= 0.01: flag = True #tolerância de 1 centésimo
-
-                #dif = abs(constante-constante2)
-                #if dif >= 2: flag = True #tolerância de 1 centésimo
+                dif1 = abs(gradiente-gradiente2) #Diferença entre gradientes
+                dif2 = abs(constante-constante2) #Diferença entre coeficientes x das equações da reta
+                if (dif1 <= 0.01) and (dif2 <= 0.01): flag = True #tolerância de 1 centésimo e constantes que distam de 2m
                     
                 if flag == True:
-                    #Ponto 1
-                    x_media = (startpoint.x() + endpoint2.x())/2
-                    y_media = (startpoint.y() + endpoint2.y())/2
-                    p_1 = QgsPoint(x_media, y_media)
+                    dist1 = startpoint.distance(startpoint2)
+                    dist2 = startpoint.distance(endpoint2)
 
-                    #Ponto 2
-                    x_media = (endpoint.x() + startpoint2.x())/2
-                    y_media = (endpoint.y() + startpoint2.y())/2
-                    p_2 = QgsPoint(x_media, y_media)
+                    if dist1 < dist2:
+                        #Ponto 1
+                        x_media = (startpoint.x() + startpoint2.x())/2
+                        y_media = (startpoint.y() + startpoint2.y())/2
+                        p_1 = QgsPoint(x_media, y_media)
+
+                        #Ponto 2
+                        x_media = (endpoint.x() + endpoint2.x())/2
+                        y_media = (endpoint.y() + endpoint2.y())/2
+                        p_2 = QgsPoint(x_media, y_media)
+
+                    else:
+                        #Ponto 1
+                        x_media = (startpoint.x() + endpoint2.x())/2
+                        y_media = (startpoint.y() + endpoint2.y())/2
+                        p_1 = QgsPoint(x_media, y_media)
+
+                        #Ponto 2
+                        x_media = (endpoint.x() + startpoint2.x())/2
+                        y_media = (endpoint.y() + startpoint2.y())/2
+                        p_2 = QgsPoint(x_media, y_media)
 
                     # Criação da linha média
                     newline = QgsGeometry.fromPolyline([p_1, p_2])
 
                     # Comprimento da extensão desejada (4,5 metros)
-                    extensao = 4.5  # metros
+                    extensao = 4.5  # Este comprimento corresponde a aproximadamente metada da largura da via
 
                     # Calcula o vetor direção da linha
                     ponto_inicial = QgsPoint(newline.asPolyline()[0])
@@ -179,17 +182,11 @@ class Projeto7Solucao(QgsProcessingAlgorithm):
                     # Normaliza o vetor direção
                     if comprimento_vetor > 0:
                         vetor_direcao = QgsPoint(vetor_direcao.x() / comprimento_vetor, vetor_direcao.y() / comprimento_vetor)
-                    else:
-                        # Lida com o caso em que o vetor direção é uma linha de comprimento zero
-                        # Você pode adotar uma abordagem diferente se necessário
-                        print("A linha tem comprimento zero")
 
-                   # Extende a linha no início e no final
+                    # Extende a linha no início e no final
                     ponto_inicial_extendido = QgsPoint(ponto_inicial.x() - extensao * vetor_direcao.x(), ponto_inicial.y() - extensao * vetor_direcao.y())
                     ponto_final_extendido = QgsPoint(ponto_final.x() + extensao * vetor_direcao.x(), ponto_final.y() + extensao * vetor_direcao.y())
-
                     linha_extendida = QgsGeometry.fromPolyline([ponto_inicial_extendido, ponto_final_extendido])
-
 
                     feature = QgsFeature(fields)
                     feature.setGeometry(linha_extendida)
@@ -198,12 +195,7 @@ class Projeto7Solucao(QgsProcessingAlgorithm):
 
                 #feedback.pushInfo(f'\nA linha {geomline} de gradiente {gradiente} e a linha {geomline2} de gradiente {gradiente2} provavelmente são da mesma via. Uma possui a constante {constante} e a outra possui a constante {constante2}.')
                 #Verificação das constantes das vias. Caso tenham constante próximas, provavelmente estão na mesma equação de reta, ou seja, não quero.
-
-
-
                 #feedback.pushInfo(f'\nA linha {geomline} contém a constante {coeficientes[2]} e gradiente {gradiente}\n a {geomline2} contém a constante {coeficientes2[2]} e gradiente {gradiente2}.')
-
-        
         return {self.OUTPUT: output_dest_id}
 
     def name(self):
