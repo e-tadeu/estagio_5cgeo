@@ -255,7 +255,7 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
             nova_feature.setGeometry(geometria_mesclada)
             nova_feature.setAttributes(atributos)
             inputLyr.dataProvider().addFeatures([nova_feature])
-            inputLyr.updateExtents()
+            #inputLyr.updateExtents()
         inputLyr.updateExtents()
 
         #REMOÇÃO DE GEOMETRIAS DUPLICADAS
