@@ -105,7 +105,7 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
         )
         self.addOutput(
             QgsProcessingOutputVectorLayer(
-                self.OUTPUT, self.tr("Original layer with overlayed lines")
+                self.OUTPUT, self.tr("Camada original com as linhas aparadas")
             )
         )
 
@@ -255,7 +255,6 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
             nova_feature.setGeometry(geometria_mesclada)
             nova_feature.setAttributes(atributos)
             inputLyr.dataProvider().addFeatures([nova_feature])
-            #inputLyr.updateExtents()
         inputLyr.updateExtents()
 
         #REMOÇÃO DE GEOMETRIAS DUPLICADAS
