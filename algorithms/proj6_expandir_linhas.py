@@ -56,6 +56,7 @@ from qgis.core import (QgsProcessing,
                        QgsExpression,
                        QgsVectorLayer,
                        QgsProcessingMultiStepFeedback,
+                       QgsProcessingOutputVectorLayer,
                        QgsProcessingParameterVectorLayer,
                        QgsFields,
                        QgsFeature,
@@ -80,184 +81,78 @@ class Projeto6Solucao(QgsProcessingAlgorithm):
     # calling from the QGIS console.
 
     # Camadas de input
-    CURVAS = 'CURVAS'
-    DRENAGEM = 'DRENAGEM'
-    VIAS = 'VIAS'
-    ENERGIA = 'ENERGIA'
-    DISTANCIA = 'DISTANCIA'
-    MOLDURA = 'MOLDURA'
+    INPUT = 'INPUT'
+    MIN_LENGTH = "MIN_LENGTH"
 
     # Camadas de output
     OUTPUT = 'OUTPUT'
 
     def initAlgorithm(self, config):
 
-        self.addParameter(QgsProcessingParameterVectorLayer(self.DRENAGEM, self.tr('Insira a camada de drenagem'), 
+        self.addParameter(QgsProcessingParameterVectorLayer(self.INPUT, self.tr('Insira a camada de linha'), 
                                                             types=[QgsProcessing.TypeVectorLine], 
                                                             defaultValue=None))
         
-        self.addParameter(QgsProcessingParameterVectorLayer(self.VIAS, self.tr('Insira a camada de rodovias'), 
-                                                            types=[QgsProcessing.TypeVectorLine], 
-                                                            defaultValue=None))
-
-        self.addParameter(QgsProcessingParameterVectorLayer(self.ENERGIA, self.tr('Insira a camada de linhas de energia'), 
-                                                            types=[QgsProcessing.TypeVectorLine], 
-                                                            defaultValue=None))
-
-        self.addParameter(QgsProcessingParameterVectorLayer(self.CURVAS, self.tr('Insira as curvas de nível'), 
-                                                            types=[QgsProcessing.TypeVectorLine], 
-                                                            defaultValue=None))
-        
-        self.addParameter(QgsProcessingParameterVectorLayer(self.MOLDURA, self.tr('Insira a moldura'), 
-                                                            types=[QgsProcessing.TypeVectorPolygon], 
-                                                            defaultValue=None))
-                        
-        self.addParameter(QgsProcessingParameterNumber(self.DISTANCIA,
-                                                       self.tr('Insira a distância de busca'),
-                                                       defaultValue=0.01,
+        self.addParameter(QgsProcessingParameterNumber(self.MIN_LENGTH,
+                                                       self.tr('Insira a distancia mínima'),
+                                                       defaultValue=10,
                                                        type=QgsProcessingParameterNumber.Double))
 
-        self.addParameter(QgsProcessingParameterFeatureSink(self.OUTPUT, self.tr('Erros'), 
-                                                            type=QgsProcessing.TypeVectorPoint, 
-                                                            createByDefault=True, 
-                                                            supportsAppend=True, 
-                                                            defaultValue='TEMPORARY_OUTPUT'))
+        self.addOutput(QgsProcessingOutputVectorLayer(self.OUTPUT, self.tr("Camada original com as linhas expandidas")))
         
         
     def processAlgorithm(self, parameters, context, feedback):
         """
         Here is where the processing itself takes place.
         """
-        drenagem = self.parameterAsVectorLayer(parameters,self.DRENAGEM,context)
-        vias = self.parameterAsVectorLayer(parameters,self.VIAS,context)
-        energia = self.parameterAsVectorLayer(parameters,self.ENERGIA,context)
-        curvas = self.parameterAsVectorLayer(parameters,self.CURVAS,context)
-        moldura = self.parameterAsVectorLayer(parameters,self.MOLDURA,context)
-        distancia = self.parameterAsDouble(parameters,self.DISTANCIA,context)
-
-        #Criação da camada de saída do tipo ponto com o tipo de erro
-        fields = QgsFields()
-        fields.append(QgsField("tipo_erro", QVariant.String))
-        (output_sink, output_dest_id) = self.parameterAsSink(parameters,self.OUTPUT,context,
-                                                             fields,1,drenagem.sourceCrs())
+        inputLyr = self.parameterAsVectorLayer(parameters,self.INPUT,context)
+        tol = self.parameterAsDouble(parameters, self.MIN_LENGTH, context)
 
         #Criação de uma camada de linhas de interseção entre os produtos
-        intersecoes = list()
-        for molduras in moldura.getFeatures():
-            geometryMoldura = molduras.geometry()
-            idMoldura = molduras.id()
+        for linhas in inputLyr.getFeatures():
+            geometria = linhas.geometry()
+                      
+            for parts in geometria.parts():vertices = list(parts)
+                            
+            ponto_inicial = vertices[0]
+            ponto_final = vertices[-1]
+
+            #Obtenção do vetor direção
+            vetor_direcao = ponto_final - ponto_inicial
+
+            #Obtenção do comprimento do vetor
+            comprimento_vetor = (vetor_direcao.x()**2 + vetor_direcao.y()**2)**0.5
+           
+            # Normaliza o vetor direção
+            if comprimento_vetor > 0:
+                vetor_direcao = QgsPoint(vetor_direcao.x() / comprimento_vetor, vetor_direcao.y() / comprimento_vetor)
             
-            for mold in moldura.getFeatures():
-                geometryMold = mold.geometry()
-                idMold = mold.id()
+            ponto_inicial_extendido = QgsPoint(ponto_inicial.x() - tol * vetor_direcao.x(), ponto_inicial.y() - tol * vetor_direcao.y())
+            ponto_final_extendido = QgsPoint(ponto_final.x() + tol * vetor_direcao.x(), ponto_final.y() + tol * vetor_direcao.y())
+            linha_extendida = QgsGeometry.fromPolyline([ponto_inicial_extendido, ponto_final_extendido])
 
-                if idMoldura != idMold:
-                    if geometryMoldura.touches(geometryMold):
-                        linha = geometryMoldura.intersection(geometryMold)
-                        tipo = linha.type() #Está retornando 1 ou 0, sendo 1 para MultiLineString e 0 para Point
+            bbox = geometria.buffer(tol, 8).boundingBox()
+            for lines in inputLyr.getFeatures(bbox):
+                geometry = lines.geometry()
 
-                        if tipo == 1:
-                            intersecoes.append(linha)
+                if geometria.disjoint(geometry) and linha_extendida.intersects(geometry):
+                    feedback.pushInfo(f'\nA linha {linha_extendida} do tipo {type(linha_extendida)} intersepta a linha {geometry} do tipo {type(geometry)}.')
+                    ponto_referencia = linha_extendida.intersection(geometry).asPoint()
+                    feedback.pushInfo(f'\nO ponto referencia {ponto_referencia} é do tipo {type(ponto_referencia)}')
+                    feedback.pushInfo(f'\nO ponto inicial {ponto_inicial} é do tipo {type(ponto_inicial)}')
+                    dist1 = ponto_referencia.distance(QgsPointXY(ponto_inicial))
+                    dist2 = ponto_referencia.distance(QgsPointXY(ponto_final))
 
-        #Eliminação de linhas de contato duplicadas entre produtos
-        unique_intersecoes = list()
-        for i in intersecoes:
-            is_duplicate = False
-            for j in unique_intersecoes:
-                if i.equals(j) or i.contains(j):
-                    is_duplicate = True
-                    break
-            if not is_duplicate:
-                unique_intersecoes.append(i)
+                    if dist1 < dist2:
+                        ponto_referencia = QgsPoint(ponto_referencia.x() - 1 * vetor_direcao.x(), ponto_referencia.y() - 1 * vetor_direcao.y()) #Está estendido em mais 1 metro
+                        linha_extendida = QgsGeometry.fromPolyline([ponto_referencia, ponto_final])
+                    else:
+                        ponto_referencia = QgsPoint(ponto_referencia.x() + 1 * vetor_direcao.x(), ponto_referencia.y() + 1 * vetor_direcao.y()) #Está estendido em mais 1 metro
+                        linha_extendida = QgsGeometry.fromPolyline([ponto_inicial, ponto_referencia])
+            linhas.setGeometry(linha_extendida)
+            inputLyr.updateFeature(linhas)
 
-        #Criação das áreas de busca
-        areas = list()
-        for i in unique_intersecoes:
-            area_busca = i.buffer(distancia, 8)
-            areas.append(area_busca)
-
-        for area in areas:
-            #VERIFICAÇÃO DOS ERROS POR ATRIBUTO
-            #Vericação de atributos sobre as linhas de drenagem
-            bbox = area.boundingBox()
-            for linhas in drenagem.getFeatures(bbox):
-                geometryLinhas = linhas.geometry()
-                nome = str(linhas.attributes()[2])
-                if nome == 'NULL': continue
-
-                for line in drenagem.getFeatures(bbox):
-                    geometryLine = line.geometry()
-                    name = str(line.attributes()[2])
-                    if name == 'NULL': continue
-                    
-                    if nome != name and nome in name:
-                        if geometryLinhas.touches(geometryLine):
-                            p = geometryLinhas.intersection(geometryLine).asPoint()
-                            p = QgsGeometry.fromPointXY(p)
-                            if not geometryLinhas.contains(p):
-                                feedback.pushInfo(f"O ponto {p} é o toque de {nome} com {name}.")
-                                novo_feat = QgsFeature(fields)
-                                novo_feat.setGeometry(p)
-                                novo_feat.setAttribute(0, 'atributos distintos')
-                                output_sink.addFeature(novo_feat)
-        
-            #VERIFICAÇÃO DAS GEOMETRIAS DESCONECTADAS
-            #Verificação sobre as curvas de nível
-            for linha in curvas.getFeatures(bbox):
-                geometryLinhas = linha.geometry()
-                for part in geometryLinhas.parts():
-                    vertices = list(part)
-                ponto_inicial = QgsGeometry.fromPointXY(QgsPointXY(vertices[0].x(), vertices[0].y()))
-                ponto_final = QgsGeometry.fromPointXY(QgsPointXY(vertices[-1].x(), vertices[-1].y()))
-
-                #Caso da curva de nível que intersepta a área de busca
-                if geometryLinhas.within(area) or (geometryLinhas.intersects(area) and area.contains(ponto_inicial)) or (geometryLinhas.intersects(area) and area.contains(ponto_final)):
-                    flag_i = True
-                    flag_f = True
-                    for line in curvas.getFeatures(bbox):
-                        geometryLine = line.geometry()
-                        if not (geometryLinhas.equals(geometryLine)):
-                            if ponto_inicial.touches(geometryLine) or ponto_inicial.within(geometryLine): flag_i = False
-                            if ponto_final.touches(geometryLine) or ponto_final.within(geometryLine): flag_f = False
-                    if flag_i == True and area.contains(ponto_inicial):
-                        novo_feat = QgsFeature(fields)
-                        novo_feat.setGeometry(ponto_inicial)
-                        novo_feat.setAttribute(0, 'geometria desconectada')
-                        output_sink.addFeature(novo_feat)
-                    if flag_f == True and area.contains(ponto_final):
-                        novo_feat = QgsFeature(fields)
-                        novo_feat.setGeometry(ponto_final)
-                        novo_feat.setAttribute(0, 'geometria desconectada')
-                        output_sink.addFeature(novo_feat)
-
-            #Verificação sobre as linhas de energia
-            for linhas in energia.getFeatures(bbox):
-                geometryLinhas = linhas.geometry()
-                for part in geometryLinhas.parts():
-                    vertices = list(part)
-                ponto_inicial = QgsGeometry.fromPointXY(QgsPointXY(vertices[0].x(), vertices[0].y()))
-                ponto_final = QgsGeometry.fromPointXY(QgsPointXY(vertices[-1].x(), vertices[-1].y()))
-
-                if (geometryLinhas.intersects(area) and area.contains(ponto_inicial)) or (geometryLinhas.intersects(area) and area.contains(ponto_final)):
-                    flag_i = True
-                    flag_f = True
-                    for line in energia.getFeatures(bbox):
-                        geometryLine = line.geometry()
-                        if not (geometryLinhas.equals(geometryLine)):
-                            if ponto_inicial.touches(geometryLine) or ponto_inicial.within(geometryLine): flag_i = False
-                            if ponto_final.touches(geometryLine) or ponto_final.within(geometryLine): flag_f = False
-                    if flag_i == True and area.contains(ponto_inicial):
-                        novo_feat = QgsFeature(fields)
-                        novo_feat.setGeometry(ponto_inicial)
-                        novo_feat.setAttribute(0, 'geometria desconectada')
-                        output_sink.addFeature(novo_feat)
-                    if flag_f == True and area.contains(ponto_final):
-                        novo_feat = QgsFeature(fields)
-                        novo_feat.setGeometry(ponto_final)
-                        novo_feat.setAttribute(0, 'geometria desconectada')
-                        output_sink.addFeature(novo_feat)
-                   
-        return {self.OUTPUT: output_dest_id}
+        return {self.OUTPUT: inputLyr}
 
     def name(self):
         """
