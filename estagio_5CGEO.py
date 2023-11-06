@@ -51,16 +51,15 @@ if cmd_folder not in sys.path:
 class Estagio5CGEOPlugin(object):
 
     def __init__(self, iface):
-        #self.provider = None
         self.iface = iface
 
+    """
     def initProcessing(self):
-        """Init Processing provider for QGIS >= 3.8."""
         self.provider = Estagio5CGEOProvider()
         QgsApplication.processingRegistry().addProvider(self.provider)
-
+    """
     def initGui(self):
-        self.initProcessing()
+        #self.initProcessing()
         icon1 = os.path.join(os.path.join(cmd_folder, 'apara_linha.png'))
         icon2 = os.path.join(os.path.join(cmd_folder, 'fecha_linha.png'))
         icon3 = os.path.join(os.path.join(cmd_folder, 'exp_linha.png'))
@@ -93,7 +92,7 @@ class Estagio5CGEOPlugin(object):
 
         # Check if a layer is selected
         if not inputFeat:
-            iface.messageBar().pushMessage('Please select a layer',  level=Qgis.Critical)
+            iface.messageBar().pushMessage('Please select a feature',  level=Qgis.Critical)
 
         else:    
             #Criação de uma camada de linhas de interseção entre os produtos
