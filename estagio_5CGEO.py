@@ -76,7 +76,7 @@ class Estagio5CGEOPlugin(object):
         #self.action1.triggered.connect(self.run1)
         self.action2.triggered.connect(self.run2)
         self.action3.triggered.connect(self.run3)
-        #self.action4.triggered.connect(self.run4)
+        self.action4.triggered.connect(self.run4)
 
     def unload(self):
         #QgsApplication.processingRegistry().removeProvider(self.provider)
@@ -167,3 +167,24 @@ class Estagio5CGEOPlugin(object):
                         linhas.setGeometry(linha_extendida)
                         inputLyr.updateFeature(linhas)
                         self.iface.messageBar().pushMessage(f'Linha {linhas.id()} expandida.')
+        
+    def run4(self): #Suavizar linhas
+        inputLyr = iface.activeLayer()
+        #inputFeat = inputLyr.selectedFeatures()
+        iteracoes = 5
+        deslocamento = 0.1
+
+        # Check if a layer is selected
+        if not inputLyr.selectedFeatures():
+            iface.messageBar().pushMessage('Please select a feature',  level=Qgis.Critical)
+
+        else:
+            for linhas in inputLyr.selectedFeatures():
+                geometria = linhas.geometry()
+                
+                #Obtendo a linha suavizada
+                new_geometry = geometria.smooth(iteracoes, deslocamento)  #Iterações igual a 5 e deslocamento igual a 10%
+
+                linhas.setGeometry(new_geometry)
+                inputLyr.updateFeature(linhas)
+                self.iface.messageBar().pushMessage(f'Linha {linhas.id()} suavizada com {iteracoes} iterações e {deslocamento} de deslocamento.')
