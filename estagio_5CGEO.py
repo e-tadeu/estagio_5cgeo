@@ -36,7 +36,8 @@ import sys
 import inspect
 from PyQt5.QtWidgets import QAction, QMenu
 from PyQt5.QtGui import QIcon
-from qgis.core import (QgsPoint,
+from qgis.core import (Qgis,
+                       QgsPoint,
                        QgsPointXY,
                        QgsGeometry,
                        QgsApplication)
@@ -83,7 +84,7 @@ class Estagio5CGEOPlugin(object):
         self.iface.removeToolBarIcon(self.action2)
         self.iface.removeToolBarIcon(self.action3)
         self.iface.removeToolBarIcon(self.action4)
-        del self.action2
+        #del self.action2
 
     def run2(self): #Fechar linhas
         inputLyr = iface.activeLayer()
@@ -96,7 +97,7 @@ class Estagio5CGEOPlugin(object):
 
         else:    
             #Criação de uma camada de linhas de interseção entre os produtos
-            for linhas in inputFeat.getFeatures():
+            for linhas in inputFeat:
                 geometria = linhas.geometry()
                 for parts in geometria.parts():vertices = list(parts)
 
@@ -114,19 +115,20 @@ class Estagio5CGEOPlugin(object):
                 linha_fechada = QgsGeometry.fromPolyline(vertices)
                 linhas.setGeometry(linha_fechada)
                 inputLyr.updateFeature(linhas)
-        self.iface.messageBar().pushMessage('Linha selecionada fechada.')
+                self.iface.messageBar().pushMessage(f'Linha {linhas.id()} fechada.')
 
     def run3(self): #Expandir linhas
         inputLyr = iface.activeLayer()
+        inputFeat = inputLyr.selectedFeatures()
         tol = 10 #Pode ser ajustado conforme necessidade
 
         # Check if a layer is selected
-        if not inputLyr:
-            iface.messageBar().pushMessage('Please select a layer',  level=Qgis.Critical)
+        if not inputFeat or len(inputFeat) == 1:
+            iface.messageBar().pushMessage('Por favor, selecione ao menos duas feições',  level=Qgis.Critical)
 
         else:    
            #Criação de uma camada de linhas de interseção entre os produtos
-            for linhas in inputLyr.getFeatures():
+            for linhas in inputFeat: 
                 geometria = linhas.geometry()
                         
                 for parts in geometria.parts():vertices = list(parts)
@@ -148,11 +150,10 @@ class Estagio5CGEOPlugin(object):
                 ponto_final_extendido = QgsPoint(ponto_final.x() + tol * vetor_direcao.x(), ponto_final.y() + tol * vetor_direcao.y())
                 linha_extendida = QgsGeometry.fromPolyline([ponto_inicial_extendido, ponto_final_extendido])
 
-                bbox = geometria.buffer(tol, 8).boundingBox()
-                for lines in inputLyr.getFeatures(bbox):
+                for lines in inputFeat:
                     geometry = lines.geometry()
 
-                    if geometria.disjoint(geometry) and linha_extendida.intersects(geometry):
+                    if geometria.disjoint(geometry) and linha_extendida.intersects(geometry) and linhas.id() != lines.id():
                         ponto_referencia = linha_extendida.intersection(geometry).asPoint()
                         dist1 = ponto_referencia.distance(QgsPointXY(ponto_inicial))
                         dist2 = ponto_referencia.distance(QgsPointXY(ponto_final))
@@ -163,6 +164,6 @@ class Estagio5CGEOPlugin(object):
                         else:
                             ponto_referencia = QgsPoint(ponto_referencia.x() + 1 * vetor_direcao.x(), ponto_referencia.y() + 1 * vetor_direcao.y()) #Está estendido em mais 1 metro
                             linha_extendida = QgsGeometry.fromPolyline([ponto_inicial, ponto_referencia])
-                linhas.setGeometry(linha_extendida)
-                inputLyr.updateFeature(linhas)
-        self.iface.messageBar().pushMessage('Linha selecionada expandida.')
+                        linhas.setGeometry(linha_extendida)
+                        inputLyr.updateFeature(linhas)
+                        self.iface.messageBar().pushMessage(f'Linha {linhas.id()} expandida.')
