@@ -77,6 +77,10 @@ class Estagio5CGEOPlugin(object):
         self.action2.triggered.connect(self.run2)
         self.action3.triggered.connect(self.run3)
         self.action4.triggered.connect(self.run4)
+        self.action1.setShortcut("Ctrl+Alt+A")
+        self.action2.setShortcut("Ctrl+Alt+F")
+        self.action3.setShortcut("Ctrl+Alt+E")
+        self.action4.setShortcut("Ctrl+Alt+S")
 
     def unload(self):
         #QgsApplication.processingRegistry().removeProvider(self.provider)
@@ -170,7 +174,8 @@ class Estagio5CGEOPlugin(object):
         
     def run4(self): #Suavizar linhas
         inputLyr = iface.activeLayer()
-        #inputFeat = inputLyr.selectedFeatures()
+
+        #Definição de parâmetros
         iteracoes = 5
         deslocamento = 0.1
 
