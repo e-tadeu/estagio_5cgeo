@@ -36,10 +36,16 @@ import sys
 import inspect
 from PyQt5.QtWidgets import QAction, QMenu
 from PyQt5.QtGui import QIcon
+from qgis.core import (QgsProcessing,
+                       QgsProcessingAlgorithm,
+                       QgsProcessingParameterNumber,
+                       QgsProcessingOutputVectorLayer,
+                       QgsProcessingParameterVectorLayer,
+                       QgsGeometry,
+                       QgsApplication)
 
-from qgis.core import QgsProcessingAlgorithm, QgsApplication
 from .estagio_5CGEO_provider import Estagio5CGEOProvider
-
+from qgis.utils import iface
 cmd_folder = os.path.split(inspect.getfile(inspect.currentframe()))[0]
 
 if cmd_folder not in sys.path:
@@ -69,4 +75,31 @@ class Estagio5CGEOPlugin(object):
         del self.action
 
     def run(self):
-        self.iface.messageBar().pushMessage('Plugins de projetos dos estagiários do 5 CGEO')
+        inputLyr = iface.activeLayer()
+        distance = 10 #Pode ser ajustado conforme necessidade
+
+        # Check if a layer is selected
+        if not inputLyr:
+            iface.messageBar().pushMessage('Please select a layer',  level=Qgis.Critical)
+
+        else:    
+            #Criação de uma camada de linhas de interseção entre os produtos
+            for linhas in inputLyr.getFeatures():
+                geometria = linhas.geometry()
+                for parts in geometria.parts():vertices = list(parts)
+
+                #Atribuição dos pontos extremos
+                ponto_inicial = vertices[0]
+                ponto_final = vertices[-1]
+
+                #Distância entre os pontos extremos
+                distancia = ponto_final.distance(ponto_inicial)
+
+                #Condição para caso a distância entre os pontos extremos distam menor que a distancia minima
+                if distancia <= distance: vertices.append(ponto_inicial)
+                
+                #Inserção da linha fechada à camada
+                linha_fechada = QgsGeometry.fromPolyline(vertices)
+                linhas.setGeometry(linha_fechada)
+                inputLyr.updateFeature(linhas)
+        self.iface.messageBar().pushMessage('Linha selecionada fechada')
