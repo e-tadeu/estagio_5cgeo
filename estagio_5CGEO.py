@@ -79,12 +79,12 @@ class Estagio5CGEOPlugin(object):
         #self.action4.triggered.connect(self.run4)
 
     def unload(self):
-        QgsApplication.processingRegistry().removeProvider(self.provider)
+        #QgsApplication.processingRegistry().removeProvider(self.provider)
         self.iface.removeToolBarIcon(self.action1)
         self.iface.removeToolBarIcon(self.action2)
         self.iface.removeToolBarIcon(self.action3)
         self.iface.removeToolBarIcon(self.action4)
-        del self.action1
+        del self.action2
 
     def run2(self): #Fechar linhas
         inputLyr = iface.activeLayer()
