@@ -36,11 +36,8 @@ import sys
 import inspect
 from PyQt5.QtWidgets import QAction, QMenu
 from PyQt5.QtGui import QIcon
-from qgis.core import (QgsProcessing,
-                       QgsProcessingAlgorithm,
-                       QgsProcessingParameterNumber,
-                       QgsProcessingOutputVectorLayer,
-                       QgsProcessingParameterVectorLayer,
+from qgis.core import (QgsPoint,
+                       QgsPointXY,
                        QgsGeometry,
                        QgsApplication)
 
@@ -64,27 +61,43 @@ class Estagio5CGEOPlugin(object):
 
     def initGui(self):
         self.initProcessing()
-        icon = os.path.join(os.path.join(cmd_folder, '5cgeo.png'))
-        self.action = QAction(QIcon(icon), 'Projetos do 5° CGEO', self.iface.mainWindow())
-        self.iface.addToolBarIcon(self.action)
-        self.action.triggered.connect(self.run)
+        icon1 = os.path.join(os.path.join(cmd_folder, 'apara_linha.png'))
+        icon2 = os.path.join(os.path.join(cmd_folder, 'fecha_linha.png'))
+        icon3 = os.path.join(os.path.join(cmd_folder, 'exp_linha.png'))
+        icon4 = os.path.join(os.path.join(cmd_folder, 'suav_linha.png'))
+        self.action1 = QAction(QIcon(icon1), 'Aparar linha', self.iface.mainWindow())
+        self.action2 = QAction(QIcon(icon2), 'Fechar linha', self.iface.mainWindow())
+        self.action3 = QAction(QIcon(icon3), 'Expandir linha', self.iface.mainWindow())
+        self.action4 = QAction(QIcon(icon4), 'Suavizar linha', self.iface.mainWindow())
+        self.iface.addToolBarIcon(self.action1)
+        self.iface.addToolBarIcon(self.action2)
+        self.iface.addToolBarIcon(self.action3)
+        self.iface.addToolBarIcon(self.action4)
+        #self.action1.triggered.connect(self.run1)
+        self.action2.triggered.connect(self.run2)
+        self.action3.triggered.connect(self.run3)
+        #self.action4.triggered.connect(self.run4)
 
     def unload(self):
         QgsApplication.processingRegistry().removeProvider(self.provider)
-        self.iface.removeToolBarIcon(self.action)
-        del self.action
+        self.iface.removeToolBarIcon(self.action1)
+        self.iface.removeToolBarIcon(self.action2)
+        self.iface.removeToolBarIcon(self.action3)
+        self.iface.removeToolBarIcon(self.action4)
+        del self.action1
 
-    def run(self):
+    def run2(self): #Fechar linhas
         inputLyr = iface.activeLayer()
+        inputFeat = inputLyr.selectedFeatures()
         distance = 10 #Pode ser ajustado conforme necessidade
 
         # Check if a layer is selected
-        if not inputLyr:
+        if not inputFeat:
             iface.messageBar().pushMessage('Please select a layer',  level=Qgis.Critical)
 
         else:    
             #Criação de uma camada de linhas de interseção entre os produtos
-            for linhas in inputLyr.getFeatures():
+            for linhas in inputFeat.getFeatures():
                 geometria = linhas.geometry()
                 for parts in geometria.parts():vertices = list(parts)
 
@@ -102,4 +115,55 @@ class Estagio5CGEOPlugin(object):
                 linha_fechada = QgsGeometry.fromPolyline(vertices)
                 linhas.setGeometry(linha_fechada)
                 inputLyr.updateFeature(linhas)
-        self.iface.messageBar().pushMessage('Linha selecionada fechada')
+        self.iface.messageBar().pushMessage('Linha selecionada fechada.')
+
+    def run3(self): #Expandir linhas
+        inputLyr = iface.activeLayer()
+        tol = 10 #Pode ser ajustado conforme necessidade
+
+        # Check if a layer is selected
+        if not inputLyr:
+            iface.messageBar().pushMessage('Please select a layer',  level=Qgis.Critical)
+
+        else:    
+           #Criação de uma camada de linhas de interseção entre os produtos
+            for linhas in inputLyr.getFeatures():
+                geometria = linhas.geometry()
+                        
+                for parts in geometria.parts():vertices = list(parts)
+                                
+                ponto_inicial = vertices[0]
+                ponto_final = vertices[-1]
+
+                #Obtenção do vetor direção
+                vetor_direcao = ponto_final - ponto_inicial
+
+                #Obtenção do comprimento do vetor
+                comprimento_vetor = (vetor_direcao.x()**2 + vetor_direcao.y()**2)**0.5
+            
+                # Normaliza o vetor direção
+                if comprimento_vetor > 0:
+                    vetor_direcao = QgsPoint(vetor_direcao.x() / comprimento_vetor, vetor_direcao.y() / comprimento_vetor)
+                
+                ponto_inicial_extendido = QgsPoint(ponto_inicial.x() - tol * vetor_direcao.x(), ponto_inicial.y() - tol * vetor_direcao.y())
+                ponto_final_extendido = QgsPoint(ponto_final.x() + tol * vetor_direcao.x(), ponto_final.y() + tol * vetor_direcao.y())
+                linha_extendida = QgsGeometry.fromPolyline([ponto_inicial_extendido, ponto_final_extendido])
+
+                bbox = geometria.buffer(tol, 8).boundingBox()
+                for lines in inputLyr.getFeatures(bbox):
+                    geometry = lines.geometry()
+
+                    if geometria.disjoint(geometry) and linha_extendida.intersects(geometry):
+                        ponto_referencia = linha_extendida.intersection(geometry).asPoint()
+                        dist1 = ponto_referencia.distance(QgsPointXY(ponto_inicial))
+                        dist2 = ponto_referencia.distance(QgsPointXY(ponto_final))
+
+                        if dist1 < dist2:
+                            ponto_referencia = QgsPoint(ponto_referencia.x() - 1 * vetor_direcao.x(), ponto_referencia.y() - 1 * vetor_direcao.y()) #Está estendido em mais 1 metro
+                            linha_extendida = QgsGeometry.fromPolyline([ponto_referencia, ponto_final])
+                        else:
+                            ponto_referencia = QgsPoint(ponto_referencia.x() + 1 * vetor_direcao.x(), ponto_referencia.y() + 1 * vetor_direcao.y()) #Está estendido em mais 1 metro
+                            linha_extendida = QgsGeometry.fromPolyline([ponto_inicial, ponto_referencia])
+                linhas.setGeometry(linha_extendida)
+                inputLyr.updateFeature(linhas)
+        self.iface.messageBar().pushMessage('Linha selecionada expandida.')
