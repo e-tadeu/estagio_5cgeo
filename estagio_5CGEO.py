@@ -73,7 +73,7 @@ class Estagio5CGEOPlugin(object):
         self.iface.addToolBarIcon(self.action2)
         self.iface.addToolBarIcon(self.action3)
         self.iface.addToolBarIcon(self.action4)
-        #self.action1.triggered.connect(self.run1)
+        self.action1.triggered.connect(self.run1)
         self.action2.triggered.connect(self.run2)
         self.action3.triggered.connect(self.run3)
         self.action4.triggered.connect(self.run4)
@@ -90,18 +90,58 @@ class Estagio5CGEOPlugin(object):
         self.iface.removeToolBarIcon(self.action4)
         #del self.action2
 
-    def run2(self): #Fechar linhas
+    def run1(self): #Aparar linhas
         inputLyr = iface.activeLayer()
         inputFeat = inputLyr.selectedFeatures()
-        distance = 10 #Pode ser ajustado conforme necessidade
+        tol = 10 #Pode ser ajustado conforme necessidade
 
         # Check if a layer is selected
-        if not inputFeat:
-            iface.messageBar().pushMessage('Please select a feature',  level=Qgis.Critical)
+        if not inputFeat or len(inputFeat) == 1:
+            iface.messageBar().pushMessage('Por favor, selecione ao menos duas feições',  level=Qgis.Critical)
 
         else:    
             #Criação de uma camada de linhas de interseção entre os produtos
             for linhas in inputFeat:
+                geometria = linhas.geometry()
+
+                for parts in geometria.parts(): vertices = list(parts)
+                
+                #Atribuição dos pontos extremos
+                #ponto_inicial = QgsPoint(vertices[0].x(), vertices[0].y()) 
+                #ponto_final = QgsPoint(vertices[-1].x(), vertices[-1].y())
+
+                ponto_inicial = vertices[0]
+                ponto_final = vertices[-1]
+
+                for lines in inputFeat:
+                    geometry = lines.geometry()
+
+                    if linhas.id() != lines.id() and geometria.intersects(geometry):
+                        vertice = geometria.intersection(geometry).asPoint()
+                        dist1 = QgsPointXY(ponto_inicial).distance(vertice)
+                        dist2 = QgsPointXY(ponto_final).distance(vertice)
+                    
+                        if dist1 < tol: ponta_solta = QgsGeometry.fromPolyline([ponto_inicial, vertice])
+                        elif dist2 < tol: ponta_solta = QgsGeometry.fromPolyline([ponto_final, vertice])
+                        else: continue
+
+                        new_geometry = geometria.difference(ponta_solta)
+                        linhas.setGeometry(new_geometry)
+                        inputLyr.updateFeature(linhas)
+                        self.iface.messageBar().pushMessage(f'Linha {linhas.id()} foi aparada.')
+
+
+    def run2(self): #Fechar linhas
+        inputLyr = iface.activeLayer()
+        distance = 10 #Pode ser ajustado conforme necessidade
+
+        # Check if a layer is selected
+        if not inputLyr.selectedFeatures():
+            iface.messageBar().pushMessage('Please select a feature',  level=Qgis.Critical)
+
+        else:    
+            #Criação de uma camada de linhas de interseção entre os produtos
+            for linhas in inputLyr.selectedFeatures():
                 geometria = linhas.geometry()
                 for parts in geometria.parts():vertices = list(parts)
 
