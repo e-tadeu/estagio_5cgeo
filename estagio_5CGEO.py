@@ -34,13 +34,12 @@ __revision__ = '$Format:%H$'
 import os
 import sys
 import inspect
-from PyQt5.QtWidgets import QAction, QMenu
+from PyQt5.QtWidgets import QAction
 from PyQt5.QtGui import QIcon
 from qgis.core import (Qgis,
                        QgsPoint,
                        QgsPointXY,
-                       QgsGeometry,
-                       QgsApplication)
+                       QgsGeometry)
 
 from .estagio_5CGEO_provider import Estagio5CGEOProvider
 from qgis.utils import iface
@@ -77,7 +76,7 @@ class Estagio5CGEOPlugin(object):
         self.action2.triggered.connect(self.run2)
         self.action3.triggered.connect(self.run3)
         self.action4.triggered.connect(self.run4)
-        self.action1.setShortcut("Ctrl+Alt+A")
+        self.action1.setShortcut("Ctrl+Alt+Q")
         self.action2.setShortcut("Ctrl+Alt+F")
         self.action3.setShortcut("Ctrl+Alt+E")
         self.action4.setShortcut("Ctrl+Alt+S")
@@ -105,10 +104,6 @@ class Estagio5CGEOPlugin(object):
                 geometria = linhas.geometry()
 
                 for parts in geometria.parts(): vertices = list(parts)
-                
-                #Atribuição dos pontos extremos
-                #ponto_inicial = QgsPoint(vertices[0].x(), vertices[0].y()) 
-                #ponto_final = QgsPoint(vertices[-1].x(), vertices[-1].y())
 
                 ponto_inicial = vertices[0]
                 ponto_final = vertices[-1]
@@ -118,14 +113,13 @@ class Estagio5CGEOPlugin(object):
 
                     if linhas.id() != lines.id() and geometria.intersects(geometry):
                         vertice = geometria.intersection(geometry).asPoint()
-                        dist1 = QgsPointXY(ponto_inicial).distance(vertice)
-                        dist2 = QgsPointXY(ponto_final).distance(vertice)
+                        dist1 = vertice.distance(QgsPointXY(ponto_inicial))
+                        dist2 = vertice.distance(QgsPointXY(ponto_final))
                     
-                        if dist1 < tol: ponta_solta = QgsGeometry.fromPolyline([ponto_inicial, vertice])
-                        elif dist2 < tol: ponta_solta = QgsGeometry.fromPolyline([ponto_final, vertice])
+                        if dist1 < tol: new_geometry = QgsGeometry.fromPolyline([QgsPoint(vertice), ponto_final])
+                        elif dist2 < tol: new_geometry = QgsGeometry.fromPolyline([ponto_inicial, QgsPoint(vertice)])
                         else: continue
 
-                        new_geometry = geometria.difference(ponta_solta)
                         linhas.setGeometry(new_geometry)
                         inputLyr.updateFeature(linhas)
                         self.iface.messageBar().pushMessage(f'Linha {linhas.id()} foi aparada.')
@@ -232,4 +226,4 @@ class Estagio5CGEOPlugin(object):
 
                 linhas.setGeometry(new_geometry)
                 inputLyr.updateFeature(linhas)
-                self.iface.messageBar().pushMessage(f'Linha {linhas.id()} suavizada com {iteracoes} iterações e {deslocamento} de deslocamento.')
+                self.iface.messageBar().pushMessage(f'Linha {linhas.id()} suavizada com {iteracoes} iterações e {deslocamento*100}% de off set.')
