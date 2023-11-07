@@ -109,7 +109,7 @@ class Projeto6Solucao(QgsProcessingAlgorithm):
         tol = self.parameterAsDouble(parameters, self.MIN_LENGTH, context)
 
         #Criação de uma camada de linhas de interseção entre os produtos
-        for linhas in inputLyr.getFeatures():
+        for linhas in inputLyr.selectedFeatures():
             geometria = linhas.geometry()
                       
             for parts in geometria.parts():vertices = list(parts)
@@ -131,15 +131,15 @@ class Projeto6Solucao(QgsProcessingAlgorithm):
             ponto_final_extendido = QgsPoint(ponto_final.x() + tol * vetor_direcao.x(), ponto_final.y() + tol * vetor_direcao.y())
             linha_extendida = QgsGeometry.fromPolyline([ponto_inicial_extendido, ponto_final_extendido])
 
-            bbox = geometria.buffer(tol, 8).boundingBox()
-            for lines in inputLyr.getFeatures(bbox):
+            # bbox = geometria.buffer(tol, 8).boundingBox()
+            for lines in inputLyr.selectedFeatures():
                 geometry = lines.geometry()
 
-                if geometria.disjoint(geometry) and linha_extendida.intersects(geometry):
-                    feedback.pushInfo(f'\nA linha {linha_extendida} do tipo {type(linha_extendida)} intersepta a linha {geometry} do tipo {type(geometry)}.')
+                if geometria.disjoint(geometry) and linha_extendida.intersects(geometry) and linhas.id() != lines.id():
+                    #feedback.pushInfo(f'\nA linha {linha_extendida} do tipo {type(linha_extendida)} intersepta a linha {geometry} do tipo {type(geometry)}.')
                     ponto_referencia = linha_extendida.intersection(geometry).asPoint()
-                    feedback.pushInfo(f'\nO ponto referencia {ponto_referencia} é do tipo {type(ponto_referencia)}')
-                    feedback.pushInfo(f'\nO ponto inicial {ponto_inicial} é do tipo {type(ponto_inicial)}')
+                    #feedback.pushInfo(f'\nO ponto referencia {ponto_referencia} é do tipo {type(ponto_referencia)}')
+                    #feedback.pushInfo(f'\nO ponto inicial {ponto_inicial} é do tipo {type(ponto_inicial)}')
                     dist1 = ponto_referencia.distance(QgsPointXY(ponto_inicial))
                     dist2 = ponto_referencia.distance(QgsPointXY(ponto_final))
 
@@ -149,8 +149,8 @@ class Projeto6Solucao(QgsProcessingAlgorithm):
                     else:
                         ponto_referencia = QgsPoint(ponto_referencia.x() + 1 * vetor_direcao.x(), ponto_referencia.y() + 1 * vetor_direcao.y()) #Está estendido em mais 1 metro
                         linha_extendida = QgsGeometry.fromPolyline([ponto_inicial, ponto_referencia])
-            linhas.setGeometry(linha_extendida)
-            inputLyr.updateFeature(linhas)
+                    linhas.setGeometry(linha_extendida)
+                    inputLyr.updateFeature(linhas)
 
         return {self.OUTPUT: inputLyr}
 

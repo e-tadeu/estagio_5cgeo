@@ -109,7 +109,7 @@ class Projeto4Solucao(QgsProcessingAlgorithm):
         distance = self.parameterAsDouble(parameters, self.DISTANCE, context)
 
         #Criação de uma camada de linhas de interseção entre os produtos
-        for linhas in inputLyr.getFeatures():
+        for linhas in inputLyr.selectedFeatures():
             geometria = linhas.geometry()
             for parts in geometria.parts():vertices = list(parts)
 
