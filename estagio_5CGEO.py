@@ -39,7 +39,8 @@ from PyQt5.QtGui import QIcon
 from qgis.core import (Qgis,
                        QgsPoint,
                        QgsPointXY,
-                       QgsGeometry)
+                       QgsGeometry,
+                       QgsApplication)
 
 from .estagio_5CGEO_provider import Estagio5CGEOProvider
 from qgis.utils import iface
@@ -53,13 +54,13 @@ class Estagio5CGEOPlugin(object):
     def __init__(self, iface):
         self.iface = iface
 
-    """
+    
     def initProcessing(self):
         self.provider = Estagio5CGEOProvider()
         QgsApplication.processingRegistry().addProvider(self.provider)
-    """
+    
     def initGui(self):
-        #self.initProcessing()
+        self.initProcessing()
         icon1 = os.path.join(os.path.join(cmd_folder, 'apara_linha.png'))
         icon2 = os.path.join(os.path.join(cmd_folder, 'fecha_linha.png'))
         icon3 = os.path.join(os.path.join(cmd_folder, 'exp_linha.png'))
@@ -82,12 +83,11 @@ class Estagio5CGEOPlugin(object):
         self.action4.setShortcut("Ctrl+Alt+S")
 
     def unload(self):
-        #QgsApplication.processingRegistry().removeProvider(self.provider)
+        QgsApplication.processingRegistry().removeProvider(self.provider)
         self.iface.removeToolBarIcon(self.action1)
         self.iface.removeToolBarIcon(self.action2)
         self.iface.removeToolBarIcon(self.action3)
         self.iface.removeToolBarIcon(self.action4)
-        #del self.action2
 
     def run1(self): #Aparar linhas
         inputLyr = iface.activeLayer()
