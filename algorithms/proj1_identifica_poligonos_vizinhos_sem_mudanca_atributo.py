@@ -105,10 +105,19 @@ class Projeto1Solucao(QgsProcessingAlgorithm):
 
         for feature in layer.getFeatures(): #allFeatures:
             if feedback.isCanceled():
-                return {self.OUTPUT: polygonsAndfields}
+                return {self.OUTPUT: 'processing cancelado'}
             
             featgeom = feature.geometry()
-            neighbouringPolygons = self.polygonsTouched(layer, feature)
+            neighbouringPolygons = list() #self.polygonsTouched(layer, feature)
+            AreaOfInterest = feature.geometry().boundingBox()
+            request = QgsFeatureRequest().setFilterRect(AreaOfInterest)
+            for feat in layer.getFeatures(request):
+                if feature.geometry().touches(feat.geometry()) or feature.geometry().intersects(feat.geometry()):
+                    geom = feature.geometry().intersection(feat.geometry())
+                    feedback.pushInfo(f'\nA geometria {geom} é do tipo {type(geom)}.')
+                    if not str(feature.geometry())==str(feat.geometry()):
+                        neighbouringPolygons.append(feat)
+
             if len(neighbouringPolygons) == 0:
                 continue 
             for neighbourPolygon in neighbouringPolygons:
@@ -123,16 +132,18 @@ class Projeto1Solucao(QgsProcessingAlgorithm):
         newLayer = self.outLayer(parameters, context, polygonsFlag, layer, 3)
         return{self.OUTPUT: newLayer}
 
+    """
     def polygonsTouched(self, layer, polygon):
         polygons = []
         AreaOfInterest = polygon.geometry().boundingBox()
         request = QgsFeatureRequest().setFilterRect(AreaOfInterest)
         for feat in layer.getFeatures(request):
             if polygon.geometry().touches(feat.geometry()) or polygon.geometry().intersects(feat.geometry()):
-                if not str(polygon.geometry())==str(feat.geometry()):
+                geom = polygon.geometry().intersection(feat.geometry())
+                if not (str(polygon.geometry())==str(feat.geometry() and geom = ):
                     polygons.append(feat)
         return polygons
-    
+    """
     def nonChangedFields(self, inputFields, feature1, feature2):
         equalFields = []
         for field in inputFields:
