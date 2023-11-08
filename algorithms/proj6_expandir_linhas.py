@@ -34,37 +34,17 @@ __revision__ = '$Format:%H$'
 import os
 from code import interact
 from qgis.PyQt.QtCore import QCoreApplication
-from qgis.PyQt.Qt import QVariant, QCoreApplication
+from qgis.PyQt.Qt import QCoreApplication
 from qgis.core import (QgsProcessing,
-                       QgsProject,
-                       QgsFeatureSink,
                        QgsProcessingAlgorithm,
-                       QgsProcessingParameterFeatureSink,
-                       QgsProcessingParameterFeatureSource,
                        QgsProcessingParameterNumber,
-                       QgsProcessingException,
-                       QgsWkbTypes,
-                       QgsExpressionContextUtils,
                        QgsPointXY,
                        QgsPoint,
-                       QgsPointLocator,
-                       QgsSpatialIndex,
-                       QgsFeatureSink,
-                       QgsFields,
-                       QgsField,
-                       QgsFeature,
-                       QgsExpression,
-                       QgsVectorLayer,
                        QgsProcessingMultiStepFeedback,
                        QgsProcessingOutputVectorLayer,
+                       QgsProcessingParameterBoolean,
                        QgsProcessingParameterVectorLayer,
-                       QgsFields,
-                       QgsFeature,
-                       QgsField,
-                       QgsGeometry,
-                       QgsGeometryUtils,
-                       QgsGeometryCollection,
-                       QgsMarkerSymbol)
+                       QgsGeometry)
 import processing
 from PyQt5.QtGui import QColor
 
@@ -83,6 +63,7 @@ class Projeto6Solucao(QgsProcessingAlgorithm):
     # Camadas de input
     INPUT = 'INPUT'
     MIN_LENGTH = "MIN_LENGTH"
+    SELECTED = "SELECTED"
 
     # Camadas de output
     OUTPUT = 'OUTPUT'
@@ -92,6 +73,9 @@ class Projeto6Solucao(QgsProcessingAlgorithm):
         self.addParameter(QgsProcessingParameterVectorLayer(self.INPUT, self.tr('Insira a camada de linha'), 
                                                             types=[QgsProcessing.TypeVectorLine], 
                                                             defaultValue=None))
+
+        self.addParameter(QgsProcessingParameterBoolean(self.SELECTED, 
+                                                        self.tr("Process only selected features")))
         
         self.addParameter(QgsProcessingParameterNumber(self.MIN_LENGTH,
                                                        self.tr('Insira a distancia mínima'),
@@ -107,11 +91,15 @@ class Projeto6Solucao(QgsProcessingAlgorithm):
         """
         inputLyr = self.parameterAsVectorLayer(parameters,self.INPUT,context)
         tol = self.parameterAsDouble(parameters, self.MIN_LENGTH, context)
+        onlySelected = self.parameterAsBool(parameters, self.SELECTED, context)
+
+        if onlySelected == False: inputFeat = inputLyr.getFeatures()
+        else: inputFeat = inputLyr.selectedFeatures()
 
         #Criação de uma camada de linhas de interseção entre os produtos
-        for linhas in inputLyr.selectedFeatures():
+        for linhas in inputFeat:
             geometria = linhas.geometry()
-                      
+            #feedback.pushInfo(f'\nA linha {linhas} do tipo {type(linhas)} e a geometria {geometria} do tipo {type(geometria)}.')
             for parts in geometria.parts():vertices = list(parts)
                             
             ponto_inicial = vertices[0]
@@ -131,15 +119,18 @@ class Projeto6Solucao(QgsProcessingAlgorithm):
             ponto_final_extendido = QgsPoint(ponto_final.x() + tol * vetor_direcao.x(), ponto_final.y() + tol * vetor_direcao.y())
             linha_extendida = QgsGeometry.fromPolyline([ponto_inicial_extendido, ponto_final_extendido])
 
-            # bbox = geometria.buffer(tol, 8).boundingBox()
-            for lines in inputLyr.selectedFeatures():
+            
+            if onlySelected == False: 
+                bbox = geometria.buffer(tol, 8).boundingBox()
+                inputFeatBBox = inputLyr.getFeatures(bbox)
+            else: inputFeatBBox = inputLyr.selectedFeatures()
+            
+            for lines in inputFeatBBox:
                 geometry = lines.geometry()
 
                 if geometria.disjoint(geometry) and linha_extendida.intersects(geometry) and linhas.id() != lines.id():
                     #feedback.pushInfo(f'\nA linha {linha_extendida} do tipo {type(linha_extendida)} intersepta a linha {geometry} do tipo {type(geometry)}.')
                     ponto_referencia = linha_extendida.intersection(geometry).asPoint()
-                    #feedback.pushInfo(f'\nO ponto referencia {ponto_referencia} é do tipo {type(ponto_referencia)}')
-                    #feedback.pushInfo(f'\nO ponto inicial {ponto_inicial} é do tipo {type(ponto_inicial)}')
                     dist1 = ponto_referencia.distance(QgsPointXY(ponto_inicial))
                     dist2 = ponto_referencia.distance(QgsPointXY(ponto_final))
 

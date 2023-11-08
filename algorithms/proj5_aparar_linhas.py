@@ -75,6 +75,7 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
     TOLERANCE = "TOLERANCE"
     MIN_LENGTH = "MIN_LENGTH"
     OUTPUT = "OUTPUT"
+    SELECTED = "SELECTED"
 
     def initAlgorithm(self, config):
         """
@@ -83,6 +84,11 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterVectorLayer(
                 self.INPUT, self.tr("Input layer"), [QgsProcessing.TypeVectorLine]
+            )
+        )
+        self.addParameter(
+            QgsProcessingParameterBoolean(
+                self.SELECTED, self.tr("Process only selected features")
             )
         )
         self.addParameter(
@@ -116,7 +122,7 @@ class Projeto5Solucao(QgsProcessingAlgorithm):
         layerHandler = LayerHandler()
         algRunner = AlgRunner()
         inputLyr = self.parameterAsVectorLayer(parameters, self.INPUT, context)
-        onlySelected = True
+        onlySelected = self.parameterAsBool(parameters, self.SELECTED, context)
         minLength = self.parameterAsDouble(parameters, self.MIN_LENGTH, context)
         tol = self.parameterAsDouble(parameters, self.TOLERANCE, context)
 

@@ -58,6 +58,7 @@ from qgis.core import (QgsProcessing,
                        QgsProcessingMultiStepFeedback,
                        QgsProcessingOutputVectorLayer,
                        QgsProcessingParameterVectorLayer,
+                       QgsProcessingParameterBoolean,
                        QgsFields,
                        QgsFeature,
                        QgsField,
@@ -83,6 +84,7 @@ class Projeto4Solucao(QgsProcessingAlgorithm):
     # Camadas de input
     INPUT = 'INPUT'
     DISTANCE = "DISTANCE"
+    SELECTED = "SELECTED"
 
     # Camadas de output
     OUTPUT = 'OUTPUT'
@@ -93,6 +95,9 @@ class Projeto4Solucao(QgsProcessingAlgorithm):
                                                             types=[QgsProcessing.TypeVectorLine], 
                                                             defaultValue=None))
         
+        self.addParameter(QgsProcessingParameterBoolean(self.SELECTED, 
+                                                        self.tr("Process only selected features")))
+
         self.addParameter(QgsProcessingParameterNumber(self.DISTANCE,
                                                        self.tr('Insira a distancia de fechamento'),
                                                        defaultValue=10,
@@ -107,9 +112,13 @@ class Projeto4Solucao(QgsProcessingAlgorithm):
         """
         inputLyr = self.parameterAsVectorLayer(parameters,self.INPUT,context)
         distance = self.parameterAsDouble(parameters, self.DISTANCE, context)
+        onlySelected = self.parameterAsBool(parameters, self.SELECTED, context)
+
+        if onlySelected == False: inputFeat = inputLyr.getFeatures()
+        else: inputFeat = inputLyr.selectedFeatures()
 
         #Criação de uma camada de linhas de interseção entre os produtos
-        for linhas in inputLyr.selectedFeatures():
+        for linhas in inputFeat:
             geometria = linhas.geometry()
             for parts in geometria.parts():vertices = list(parts)
 
