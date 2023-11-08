@@ -33,9 +33,12 @@ __revision__ = '$Format:%H$'
 
 import os
 from qgis.PyQt.QtCore import QCoreApplication
+from PyQt5.QtCore import QVariant
 from qgis.core import (QgsFeature,
                        QgsFeatureRequest,
                        QgsFeatureSink,
+                       QgsField,
+                       QgsFields,
                        QgsProcessing,
                        QgsProcessingAlgorithm,
                        QgsProcessingParameterFeatureSink,
@@ -44,7 +47,8 @@ from qgis.core import (QgsFeature,
                        QgsProcessingParameterNumber,
                        QgsProcessingParameterVectorLayer,
                        QgsProcessingParameterRasterLayer,
-                       QgsExpression)
+                       QgsExpression,
+                       QgsWkbTypes)
 import processing
 
 
@@ -97,39 +101,46 @@ class Projeto1Solucao(QgsProcessingAlgorithm):
         layer = self.parameterAsVectorLayer(parameters,'INPUT_LAYER', context)
         inputFields = self.parameterAsFields( parameters,'INPUT_FIELDS', context )
         maxArea = self.parameterAsDouble(parameters,'INPUT_MAX_AREA', context)
-        #allFeatures = layer.getFeatures()
+
+        #Criação da lista de campos que serão analisados
+        fieldsAnalyzeds = [field.name() for field in layer.fields()]
+        for field in inputFields:
+            fieldsAnalyzeds.remove(field)
+        #feedback.pushInfo(f'\nOs campos de {layer} são {inputFields} do tipo {type(inputFields)} e serão analisados os campos {fieldsAnalyzeds} do tipo {type(fieldsAnalyzeds)}.')
+        
         if  maxArea>0:
             expr = QgsExpression( "$area < " + str(maxArea))
             allFeatures = layer.getFeatures(QgsFeatureRequest(expr))
-        polygonsFlag = []
-
-        for feature in layer.getFeatures(): #allFeatures:
+        
+        linesFlag = list()
+        for feature in layer.getFeatures():
             if feedback.isCanceled():
                 return {self.OUTPUT: 'processing cancelado'}
             
-            featgeom = feature.geometry()
             neighbouringPolygons = list() #self.polygonsTouched(layer, feature)
             AreaOfInterest = feature.geometry().boundingBox()
             request = QgsFeatureRequest().setFilterRect(AreaOfInterest)
             for feat in layer.getFeatures(request):
                 if feature.geometry().touches(feat.geometry()) or feature.geometry().intersects(feat.geometry()):
                     geom = feature.geometry().intersection(feat.geometry())
-                    feedback.pushInfo(f'\nA geometria {geom} é do tipo {type(geom)}.')
-                    if not str(feature.geometry())==str(feat.geometry()):
-                        neighbouringPolygons.append(feat)
 
+                    if not (str(feature.geometry())==str(feat.geometry()) or geom.wkbType() == QgsWkbTypes.Point): #Não se preocupou-se se for polígono, visto que nesta fase, todas as interseções serão ponto ou linha
+                        #feedback.pushInfo(f'\nA geometria {geom} é do tipo {type(geom)}.')
+                        neighbouringPolygons.append(feat)
+                        feedback.pushInfo(f'\nA lista de geometrias vizinhas é {neighbouringPolygons} é do tipo {type(neighbouringPolygons)}.')
+            
             if len(neighbouringPolygons) == 0:
                 continue 
             for neighbourPolygon in neighbouringPolygons:
-                fieldsNotChanged = []
-                fieldsNotChanged = self.nonChangedFields(inputFields, neighbourPolygon, feature)
+                fieldsNotChanged = list()
+                fieldsNotChanged = self.nonChangedFields(fieldsAnalyzeds, neighbourPolygon, feature)
                 if len(fieldsNotChanged) == len(inputFields):
-                    polygonsFlag.append(feature)
+                    linesFlag.append(feature.geometry().intersection(feat.geometry())) #feature
 
-        if len(polygonsFlag)==0:
+        if len(linesFlag)==0:
             return{self.OUTPUT: 'nenhuma imutabilidade de atributos encontrada'}
         
-        newLayer = self.outLayer(parameters, context, polygonsFlag, layer, 3)
+        newLayer = self.outLayer(parameters, context, linesFlag, layer, 2) #layer retirado do argumento, 2 significa camada de linhas
         return{self.OUTPUT: newLayer}
 
     """
@@ -145,30 +156,31 @@ class Projeto1Solucao(QgsProcessingAlgorithm):
         return polygons
     """
     def nonChangedFields(self, inputFields, feature1, feature2):
-        equalFields = []
+        equalFields = list()
         for field in inputFields:
             if feature1[field] == feature2[field]:
                 equalFields.append(field)
         return equalFields
     
-    def outLayer(self, parameters, context, features, layer, geomType):
-        newField = features[0].fields()
+    def outLayer(self, parameters, context, features, layer, geomType): #layer retirado do argumento
+        fields = QgsFields()
+        fields.append(QgsField('reason', QVariant.String))
 
         (sink, newLayer) = self.parameterAsSink(
             parameters,
             self.OUTPUT,
             context,
-            newField,
+            fields,
             geomType,
             layer.sourceCrs()
         )
         
         for feature in features:
             newFeat = QgsFeature()
-            newFeat.setGeometry(feature.geometry())
-            newFeat.setFields(newField)
-            for field in  range(len(feature.fields())):
-                newFeat.setAttribute((field), feature.attribute((field)))
+            newFeat.setGeometry(feature)
+            newFeat.setAttributes(['Polígonos vizinhos sem mudança de atributo.'])
+            #for field in  range(len(feature.fields())):
+            #    newFeat.setAttribute((field), feature.attribute((field)))
             sink.addFeature(newFeat, QgsFeatureSink.FastInsert)
         
         return newLayer
