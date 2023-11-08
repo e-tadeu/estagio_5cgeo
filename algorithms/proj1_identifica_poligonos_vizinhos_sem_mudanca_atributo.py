@@ -33,10 +33,15 @@ __revision__ = '$Format:%H$'
 
 import os
 from qgis.PyQt.QtCore import QCoreApplication
-from qgis.core import (QgsProcessing,
+from qgis.core import (QgsFeature,
+                       QgsFeatureRequest,
+                       QgsFeatureSink,
+                       QgsProcessing,
                        QgsProcessingAlgorithm,
                        QgsProcessingParameterFeatureSink,
                        QgsProcessingMultiStepFeedback,
+                       QgsProcessingParameterField,
+                       QgsProcessingParameterNumber,
                        QgsProcessingParameterVectorLayer,
                        QgsProcessingParameterRasterLayer,
                        QgsExpression)
@@ -50,167 +55,113 @@ class Projeto1Solucao(QgsProcessingAlgorithm):
 
     """
 
+    INPUT_LAYER = 'INPUT_LAYER'
+    INPUT_FIELDS = 'INPUT_FIELDS'
+    INPUT_MAX_AREA = 'INPUT_MAX_AREA'
+    OUTPUT = 'OUTPUT'
+
     def initAlgorithm(self, config=None):
-        # Camada de Entrada.
-        self.addParameter(QgsProcessingParameterVectorLayer('pontos_de_controle', 'Pontos de Controle', 
-                                                            types=[QgsProcessing.TypeVectorPoint], 
-                                                            defaultValue=None))
-        self.addParameter(QgsProcessingParameterRasterLayer('mde', 'MDE',
-                                                             defaultValue=None))
+        self.addParameter(
+            QgsProcessingParameterVectorLayer(
+                'INPUT_LAYER',
+                self.tr('Selecione a camada'),
+                types=[QgsProcessing.TypeVectorPolygon]
+            )
+        )
+        self.addParameter(
+            QgsProcessingParameterField(
+                'INPUT_FIELDS',
+                self.tr('Selecione os campos que serão ignorados'), 
+                type=QgsProcessingParameterField.Any, 
+                parentLayerParameterName='INPUT_LAYER',
+                allowMultiple=True)
+            )
         
-          # Camada de Saida.
-        self.addParameter(QgsProcessingParameterFeatureSink('AcuraciaAltimetrica', 'Acuracia Altimetrica', 
-                                                            type=QgsProcessing.TypeVectorAnyGeometry, 
-                                                            createByDefault=True, 
-                                                            supportsAppend=True, 
-                                                            defaultValue='TEMPORARY_OUTPUT'))
+        self.addParameter(
+            QgsProcessingParameterNumber(
+                'INPUT_MAX_AREA',
+                self.tr('Insira a área máxima dos poligonos analisados'), 
+                type=QgsProcessingParameterNumber.Double, 
+                optional = True,
+                minValue=0)
+            )
 
+        self.addParameter(
+            QgsProcessingParameterFeatureSink(
+                self.OUTPUT,
+                self.tr('Flag Poligono com Atributos Iguais')
+            )
+        ) 
+    def processAlgorithm(self, parameters, context, feedback):
+        feedback.setProgressText('Procurando descontinuidades...')
+        layer = self.parameterAsVectorLayer(parameters,'INPUT_LAYER', context)
+        inputFields = self.parameterAsFields( parameters,'INPUT_FIELDS', context )
+        maxArea = self.parameterAsDouble(parameters,'INPUT_MAX_AREA', context)
+        #allFeatures = layer.getFeatures()
+        if  maxArea>0:
+            expr = QgsExpression( "$area < " + str(maxArea))
+            allFeatures = layer.getFeatures(QgsFeatureRequest(expr))
+        polygonsFlag = []
 
-    def processAlgorithm(self, parameters, context, model_feedback):
-        # Use a multi-step feedback, so that individual child algorithm progress reports are adjusted for the
-        # overall progress through the model
-        feedback = QgsProcessingMultiStepFeedback(9, model_feedback)
-        results = {}
-        outputs = {}
+        for feature in layer.getFeatures(): #allFeatures:
+            if feedback.isCanceled():
+                return {self.OUTPUT: polygonsAndfields}
+            
+            featgeom = feature.geometry()
+            neighbouringPolygons = self.polygonsTouched(layer, feature)
+            if len(neighbouringPolygons) == 0:
+                continue 
+            for neighbourPolygon in neighbouringPolygons:
+                fieldsNotChanged = []
+                fieldsNotChanged = self.nonChangedFields(inputFields, neighbourPolygon, feature)
+                if len(fieldsNotChanged) == len(inputFields):
+                    polygonsFlag.append(feature)
 
-        # Delimitando limites
-        alg_params = {
-            'LAYERS': parameters['mde'],
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        }
-        outputs['DelimitandoLimites'] = processing.run('native:exportlayersinformation', alg_params, context=context, feedback=feedback, is_child_algorithm=True)
+        if len(polygonsFlag)==0:
+            return{self.OUTPUT: 'nenhuma imutabilidade de atributos encontrada'}
+        
+        newLayer = self.outLayer(parameters, context, polygonsFlag, layer, 3)
+        return{self.OUTPUT: newLayer}
 
-        feedback.setCurrentStep(1)
-        if feedback.isCanceled():
-            return {}
+    def polygonsTouched(self, layer, polygon):
+        polygons = []
+        AreaOfInterest = polygon.geometry().boundingBox()
+        request = QgsFeatureRequest().setFilterRect(AreaOfInterest)
+        for feat in layer.getFeatures(request):
+            if polygon.geometry().touches(feat.geometry()) or polygon.geometry().intersects(feat.geometry()):
+                if not str(polygon.geometry())==str(feat.geometry()):
+                    polygons.append(feat)
+        return polygons
+    
+    def nonChangedFields(self, inputFields, feature1, feature2):
+        equalFields = []
+        for field in inputFields:
+            if feature1[field] == feature2[field]:
+                equalFields.append(field)
+        return equalFields
+    
+    def outLayer(self, parameters, context, features, layer, geomType):
+        newField = features[0].fields()
 
-        # Descartando campos
-        alg_params = {
-            'COLUMN': QgsExpression("'source;crs;provider;file_path;layer_name;subset;abstract;attribution'").evaluate(),
-            'INPUT': outputs['DelimitandoLimites']['OUTPUT'],
-            'OUTPUT': 'TEMPORARY_OUTPUT',
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        }
-        outputs['DescartandoCampos'] = processing.run('native:deletecolumn', alg_params, context=context, feedback=feedback, is_child_algorithm=True)
-
-        feedback.setCurrentStep(2)
-        if feedback.isCanceled():
-            return {}
-
-        # Filtrando pontos
-        alg_params = {
-            'GRID_SIZE': None,
-            'INPUT': parameters['pontos_de_controle'],
-            'INPUT_FIELDS': [''],
-            'OUTPUT': 'TEMPORARY_OUTPUT',
-            'OVERLAY': outputs['DescartandoCampos']['OUTPUT'],
-            'OVERLAY_FIELDS': [''],
-            'OVERLAY_FIELDS_PREFIX': '',
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        }
-        outputs['FiltrandoPontos'] = processing.run('native:intersection', alg_params, context=context, feedback=feedback, is_child_algorithm=True)
-
-        feedback.setCurrentStep(3)
-        if feedback.isCanceled():
-            return {}
-
-        # Extraindo o Z da geometria
-        alg_params = {
-            'FIELD_LENGTH': 0,
-            'FIELD_NAME': 'ZRef',
-            'FIELD_PRECISION': 0,
-            'FIELD_TYPE': 0,  # Decimal (double)
-            'FORMULA': '$z',
-            'INPUT': outputs['FiltrandoPontos']['OUTPUT'],
-            'OUTPUT': 'TEMPORARY_OUTPUT',
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        }
-        outputs['ExtraindoOZDaGeometria'] = processing.run('native:fieldcalculator', alg_params, context=context, feedback=feedback, is_child_algorithm=True)
-
-        feedback.setCurrentStep(4)
-        if feedback.isCanceled():
-            return {}
-
-        # Extraindo valores do raster
-        alg_params = {
-            'COLUMN_PREFIX': 'ZRast',
-            'INPUT': outputs['ExtraindoOZDaGeometria']['OUTPUT'],
-            'OUTPUT': 'TEMPORARY_OUTPUT',
-            'RASTERCOPY': parameters['mde'],
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        }
-        outputs['ExtraindoValoresDoRaster'] = processing.run('native:rastersampling', alg_params, context=context, feedback=feedback, is_child_algorithm=True)
-
-        feedback.setCurrentStep(5)
-        if feedback.isCanceled():
-            return {}
-
-        # Calculando o Erro
-        alg_params = {
-            'FIELD_LENGTH': 0,
-            'FIELD_NAME': 'Erro',
-            'FIELD_PRECISION': 0,
-            'FIELD_TYPE': 0,  # Decimal (double)
-            'FORMULA': '"ZRef"-"ZRast1"',
-            'INPUT': outputs['ExtraindoValoresDoRaster']['OUTPUT'],
-            'OUTPUT': 'TEMPORARY_OUTPUT',
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        }
-        outputs['CalculandoOErro'] = processing.run('native:fieldcalculator', alg_params, context=context, feedback=feedback, is_child_algorithm=True)
-
-        feedback.setCurrentStep(6)
-        if feedback.isCanceled():
-            return {}
-
-        # EMQz
-        alg_params = {
-            'FIELD_LENGTH': 0,
-            'FIELD_NAME': 'EMQz',
-            'FIELD_PRECISION': 2,
-            'FIELD_TYPE': 0,  # Decimal (double)
-            'FORMULA': '(mean("Erro","name"))^2',
-            'INPUT': outputs['CalculandoOErro']['OUTPUT'],
-            'OUTPUT': 'TEMPORARY_OUTPUT',
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        }
-        outputs['Emqz'] = processing.run('native:fieldcalculator', alg_params, context=context, feedback=feedback, is_child_algorithm=True)
-
-        feedback.setCurrentStep(7)
-        if feedback.isCanceled():
-            return {}
-
-        # Analise do PEC
-        alg_params = {
-            'FIELD_LENGTH': 50,
-            'FIELD_NAME': 'PEC',
-            'FIELD_PRECISION': 0,
-            'FIELD_TYPE': 2,  # Texto (string)
-            'FORMULA': 'if("EMQz"<=1.67,\'A\',if("EMQz">1.67 AND "EMQz"<=3.33,\'B\',if("EMQz">3.33 AND "EMQz"<=4.00,\'C\',if("EMQz">4.00 AND "EMQz"<=5.00,\'D\',\'Sem Classificacao\'))))\r\n\r\n',
-            'INPUT': outputs['Emqz']['OUTPUT'],
-            'OUTPUT': parameters['AcuraciaAltimetrica']
-        }
-        outputs['AnaliseDoPec'] = processing.run('native:fieldcalculator', alg_params, context=context, feedback=feedback, is_child_algorithm=True)
-        results['AcuraciaAltimetrica'] = outputs['AnaliseDoPec']['OUTPUT']
-
-        feedback.setCurrentStep(8)
-        if feedback.isCanceled():
-            return {}
-
-        # Configurando o estilo da camada
-
-        # Get the path to the plugin directory
-        plugin_dir = os.path.dirname(__file__)
-
-        # Construct the path to the layer style file
-        style_file = os.path.join(plugin_dir, 'estilo-erro-altimetrico.qml')
-
-        alg_params = {
-            'INPUT': outputs['AnaliseDoPec']['OUTPUT'],
-            'STYLE': style_file
-        }
-        outputs['ConfigurandoOEstiloDaCamada'] = processing.run('native:setlayerstyle', alg_params, context=context, feedback=feedback, is_child_algorithm=True)
-        return results
-
+        (sink, newLayer) = self.parameterAsSink(
+            parameters,
+            self.OUTPUT,
+            context,
+            newField,
+            geomType,
+            layer.sourceCrs()
+        )
+        
+        for feature in features:
+            newFeat = QgsFeature()
+            newFeat.setGeometry(feature.geometry())
+            newFeat.setFields(newField)
+            for field in  range(len(feature.fields())):
+                newFeat.setAttribute((field), feature.attribute((field)))
+            sink.addFeature(newFeat, QgsFeatureSink.FastInsert)
+        
+        return newLayer
+    
     def name(self):
         """
         Returns the algorithm name, used for identifying the algorithm. This
