@@ -60,7 +60,6 @@ class Projeto1Solucao(QgsProcessingAlgorithm):
 
     INPUT_LAYER = 'INPUT_LAYER'
     INPUT_FIELDS = 'INPUT_FIELDS'
-    INPUT_MAX_AREA = 'INPUT_MAX_AREA'
     OUTPUT = 'OUTPUT'
 
     def initAlgorithm(self, config=None):
@@ -81,15 +80,6 @@ class Projeto1Solucao(QgsProcessingAlgorithm):
             )
         
         self.addParameter(
-            QgsProcessingParameterNumber(
-                'INPUT_MAX_AREA',
-                self.tr('Insira a área máxima dos poligonos analisados'), 
-                type=QgsProcessingParameterNumber.Double, 
-                optional = True,
-                minValue=0)
-            )
-
-        self.addParameter(
             QgsProcessingParameterFeatureSink(
                 self.OUTPUT,
                 self.tr('Flag Poligono com Atributos Iguais')
@@ -99,16 +89,11 @@ class Projeto1Solucao(QgsProcessingAlgorithm):
         feedback.setProgressText('Procurando descontinuidades...')
         layer = self.parameterAsVectorLayer(parameters,'INPUT_LAYER', context)
         inputFields = self.parameterAsFields( parameters,'INPUT_FIELDS', context )
-        maxArea = self.parameterAsDouble(parameters,'INPUT_MAX_AREA', context)
 
         #Criação da lista de campos que serão analisados
         fieldsAnalyzeds = [field.name() for field in layer.fields()]
         for field in inputFields:
             fieldsAnalyzeds.remove(field)
-        
-        if  maxArea>0:
-            expr = QgsExpression( "$area < " + str(maxArea))
-            allFeatures = layer.getFeatures(QgsFeatureRequest(expr))
         
         linesFlag = list()
         for feature in layer.getFeatures():
