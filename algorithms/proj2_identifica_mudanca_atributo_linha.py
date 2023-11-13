@@ -40,47 +40,34 @@ from typing import Iterable, List
 
 from DsgTools.core.GeometricTools.layerHandler import LayerHandler
 
-from qgis.PyQt.QtCore import QCoreApplication
-from qgis.core import (
-    QgsProcessing,
-    QgsProcessingAlgorithm,
-    QgsField,
-    QgsProcessingParameterFeatureSink,
-    QgsProcessingException,
-    QgsFeature,
-    QgsGeometry,
-    QgsFields,
-    QgsFeatureSink,
-    QgsExpression,
-    QgsWkbTypes,
-    QgsProject,
-    QgsFeatureRequest,
-    QgsProcessingParameterField,
-    QgsProcessingParameterVectorLayer,
-    QgsProcessingMultiStepFeedback,
-    QgsProcessingFeatureSourceDefinition,
-    QgsProcessingParameterBoolean,
-    QgsProcessingParameterNumber,
-    QgsProcessingParameterFeatureSource,
-    QgsProcessingParameterDistance,
-    QgsProcessingParameterMultipleLayers,
-    QgsSpatialIndex,
-)
-from qgis.PyQt.QtCore import QVariant
+from qgis.PyQt.QtCore import (QCoreApplication, QVariant)
+from qgis.core import (QgsProcessing,
+                       QgsFeatureSink,
+                       QgsProcessingAlgorithm,
+                       QgsProcessingParameterFeatureSink,
+                       QgsPointXY,
+                       QgsFeature,
+                       QgsProcessingParameterVectorLayer,
+                       QgsField,
+                       QgsFeatureRequest,
+                       QgsGeometryUtils,
+                       QgsProcessingParameterDistance,
+                       QgsProcessingParameterField,
+                       QgsProcessingParameterNumber,
+                       QgsGeometry,
+                       QgsExpression,
+                       QgsFields,
+                       )
 import math
 
 
-class Projeto2Solucao(QgsProcessingAlgorithm): #NÃO ALTERE O NOME "PROJETO2SOLUCAO"
+class Projeto2Solucao(QgsProcessingAlgorithm):
 
-    INPUT = "INPUT"
-    SELECTED = "SELECTED"
-    ATTRIBUTE_BLACK_LIST = "ATTRIBUTE_BLACK_LIST"
-    IGNORE_VIRTUAL_FIELDS = "IGNORE_VIRTUAL_FIELDS"
-    IGNORE_PK_FIELDS = "IGNORE_PK_FIELDS"
-    POINT_FILTER_LAYERS = "POINT_FILTER_LAYERS"
-    LINE_FILTER_LAYERS = "LINE_FILTER_LAYERS"
-    FLAGS = "FLAGS"
-
+    INPUT_LAYER = 'INPUT_LAYER'
+    INPUT_FIELDS = 'INPUT_FIELDS'
+    INPUT_ANGLE = 'INPUT_ANGLE'
+    INPUT_MAX_SIZE = 'INPUT_MAX_SIZE'
+    OUTPUT = 'OUTPUT'
 
     def initAlgorithm(self, config):
         """
@@ -88,382 +75,192 @@ class Projeto2Solucao(QgsProcessingAlgorithm): #NÃO ALTERE O NOME "PROJETO2SOLU
         """
         self.addParameter(
             QgsProcessingParameterVectorLayer(
-                self.INPUT,
-                self.tr("Input layer"),
-                [
-                    QgsProcessing.TypeVectorLine,
-                ],
-            )
-        )
-        self.addParameter(
-            QgsProcessingParameterBoolean(
-                self.SELECTED, self.tr("Process only selected features")
+                'INPUT_LAYER',
+                self.tr('Selecione a camada'),
+                types=[QgsProcessing.TypeVectorLine]
             )
         )
         self.addParameter(
             QgsProcessingParameterField(
-                self.ATTRIBUTE_BLACK_LIST,
-                self.tr("Fields to ignore"),
-                None,
-                "INPUT",
-                QgsProcessingParameterField.Any,
-                allowMultiple=True,
-                optional=True,
+                'INPUT_FIELDS',
+                self.tr('Selecione os campos que serão analisados'), 
+                type=QgsProcessingParameterField.Any, 
+                parentLayerParameterName='INPUT_LAYER',
+                allowMultiple=True)
             )
-        )
+        
         self.addParameter(
-            QgsProcessingParameterBoolean(
-                self.IGNORE_VIRTUAL_FIELDS,
-                self.tr("Ignore virtual fields"),
-                defaultValue=True,
+            QgsProcessingParameterNumber(
+                'INPUT_ANGLE',
+                self.tr('Insira o desvio máximo (em graus) para detectar continuidade'), 
+                type=QgsProcessingParameterNumber.Double, 
+                minValue=0)
             )
-        )
+
         self.addParameter(
-            QgsProcessingParameterBoolean(
-                self.IGNORE_PK_FIELDS,
-                self.tr("Ignore primary key fields"),
-                defaultValue=True,
+            QgsProcessingParameterDistance(
+                'INPUT_MAX_SIZE',
+                self.tr('Insira o comprimento máximo das linhas analisadas'), 
+                parentParameterName = 'INPUT_LAYER',
+                optional = True,
+                minValue=0)
             )
-        )
-        self.addParameter(
-            QgsProcessingParameterMultipleLayers(
-                self.POINT_FILTER_LAYERS,
-                self.tr("Point Filter Layers"),
-                QgsProcessing.TypeVectorPoint,
-                optional=True,
-            )
-        )
-        self.addParameter(
-            QgsProcessingParameterMultipleLayers(
-                self.LINE_FILTER_LAYERS,
-                self.tr("Line Filter Layers"),
-                QgsProcessing.TypeVectorLine,
-                optional=True,
-            )
-        )
+
         self.addParameter(
             QgsProcessingParameterFeatureSink(
-                self.FLAGS, self.tr("{0} Flags").format(self.displayName())
+                self.OUTPUT,
+                self.tr('Flag Mudança de atributos')
             )
-        )
+        ) 
 
     def processAlgorithm(self, parameters, context, feedback):
         """
         Here is where the processing itself takes place.
         """
-        inputLyr = self.parameterAsVectorLayer(parameters, self.INPUT, context)
-        onlySelected = self.parameterAsBoolean(parameters, self.SELECTED, context)
-        pointFilterLyrList = self.parameterAsLayerList(
-            parameters, self.POINT_FILTER_LAYERS, context
-        )
-        lineFilterLyrList = self.parameterAsLayerList(
-            parameters, self.LINE_FILTER_LAYERS, context
-        )
-        self.prepareFlagSink(parameters, inputLyr, QgsWkbTypes.Point, context)
-        if inputLyr is None:
-            return {"FLAGS": self.flag_id}
-        attributeBlackList = self.parameterAsFields(
-            parameters, self.ATTRIBUTE_BLACK_LIST, context
-        )
-        layerHandler = LayerHandler()
-        
-        fieldList = self.layerHandler.getAttributesFromBlackList(
-            inputLyr,
-            attributeBlackList,
-            ignoreVirtualFields=self.parameterAsBoolean(
-                parameters, self.IGNORE_VIRTUAL_FIELDS, context
-            ),
-            excludePrimaryKeys=self.parameterAsBoolean(
-                parameters, self.IGNORE_PK_FIELDS, context
-            ),
-        )
-        fieldIdList = [
-            i for i, field in enumerate(inputLyr.fields()) if field.name() in fieldList
-        ]
-        multiStepFeedback = QgsProcessingMultiStepFeedback(6, feedback)
-        multiStepFeedback.setCurrentStep(0)
-        multiStepFeedback.setProgressText(self.tr("Building local cache..."))
-        localLyr = self.runAddAutoIncrementalField(
-            inputLyr=inputLyr
-            if not onlySelected
-            else QgsProcessingFeatureSourceDefinition(inputLyr.id(), True),
-            fieldName="AUTO",
-            context=context,
-            feedback=multiStepFeedback,
-        )
-        multiStepFeedback.setCurrentStep(1)
-        multiStepFeedback.setProgressText(
-            self.tr("Building initial and end point dict...")
-        )
-        initialAndEndPointDict = self.buildInitialAndEndPointDict(
-            localLyr, context=context, feedback=multiStepFeedback
-        )
-        multiStepFeedback.setProgressText(self.tr("Building aux structure..."))
-        multiStepFeedback.setCurrentStep(2)
-        mergedPointLyr = (
-            self.runMergeVectorLayers(pointFilterLyrList, context, multiStepFeedback)
-            if pointFilterLyrList
-            else None
-        )
-        multiStepFeedback.setCurrentStep(3)
-        mergedLineLyr = (
-            self.runMergeVectorLayers(lineFilterLyrList, context, multiStepFeedback)
-            if lineFilterLyrList
-            else None
-        )
-        multiStepFeedback.setCurrentStep(4)
-        if mergedLineLyr is not None:
-            self.runCreateSpatialIndex(mergedLineLyr, context, multiStepFeedback)
-        dictSize = len(initialAndEndPointDict)
-        if dictSize == 0:
-            return {"FLAGS": self.flag_id}
-        filterPointSet = (
-            set(i.geometry().asWkb() for i in mergedPointLyr.getFeatures())
-            if mergedPointLyr is not None
-            else set()
-        )
-        multiStepFeedback.setCurrentStep(5)
-        multiStepFeedback.setProgressText(self.tr("Evaluating candidates"))
-        self.evaluateFlagCandidates(
-            fieldList,
-            fieldIdList,
-            multiStepFeedback,
-            localLyr,
-            initialAndEndPointDict,
-            mergedLineLyr,
-            dictSize,
-            filterPointSet,
-        )
-        return {"FLAGS": self.flag_id}
-
-    def evaluateFlagCandidates(
-        self,
-        fieldList,
-        fieldIdList,
-        multiStepFeedback,
-        localLyr,
-        initialAndEndPointDict,
-        mergedLineLyr,
-        dictSize,
-        filterPointSet,
-    ):
-        stepSize = 100 / dictSize
-        multiStepFeedback = QgsProcessingMultiStepFeedback(2, multiStepFeedback)
-        multiStepFeedback.setCurrentStep(0)
-
-        def evaluate(pointXY, idSet):
-            if multiStepFeedback.isCanceled():
-                return None
-            geom = QgsGeometry.fromPointXY(pointXY)
-            geomWkb = geom.asWkb()
-            if geomWkb in filterPointSet:
-                return None
-            if len(idSet) != 2:
-                return None
-            if mergedLineLyr is not None:
-                bbox = geom.boundingBox()
-                nIntersects = len(
-                    [
-                        i
-                        for i in mergedLineLyr.getFeatures(bbox)
-                        if i.geometry().intersects(geom)
-                    ]
-                )
-                if nIntersects > 0:
-                    return None
-            request = (
-                QgsFeatureRequest()
-                .setFilterExpression(f"AUTO in {tuple(idSet)}")
-                .setFlags(QgsFeatureRequest.NoGeometry)
-                .setSubsetOfAttributes(fieldIdList)
-            )
-            f1, f2 = [i for i in localLyr.getFeatures(request)]
-            differentFeats = any(f1[k] != f2[k] for k in fieldList)
-            return geomWkb if not differentFeats else None
-
-        pool = concurrent.futures.ThreadPoolExecutor(max_workers=os.cpu_count() - 1)
-        futures = set()
-
-        for current, (pointXY, idSet) in enumerate(initialAndEndPointDict.items()):
-            if multiStepFeedback.isCanceled():
-                break
-            futures.add(pool.submit(evaluate, pointXY, idSet))
-            multiStepFeedback.setProgress(current * stepSize)
-
-        multiStepFeedback.setCurrentStep(1)
-        for current, future in enumerate(concurrent.futures.as_completed(futures)):
-            if multiStepFeedback.isCanceled():
-                break
-            geomWkb = future.result()
-            if geomWkb is not None:
-                self.flagFeature(
-                    flagGeom=geomWkb,
-                    flagText=self.tr("Not merged lines with same attribute set"),
-                    fromWkb=True,
-                )
-            multiStepFeedback.setProgress(current * stepSize)
-
-    def buildInitialAndEndPointDict(self, lyr, algRunner, context, feedback):
-        pointDict = defaultdict(set)
-        nSteps = 3
-        currentStep = 0
-        multiStepFeedback = QgsProcessingMultiStepFeedback(nSteps, feedback)
-        multiStepFeedback.setCurrentStep(currentStep)
-        boundaryLyr = algRunner.runBoundary(
-            inputLayer=lyr, context=context, feedback=multiStepFeedback
-        )
-        currentStep += 1
-        multiStepFeedback.setCurrentStep(currentStep)
-        boundaryLyr = algRunner.runMultipartToSingleParts(
-            inputLayer=boundaryLyr, context=context, feedback=multiStepFeedback
-        )
-        currentStep += 1
-
-        multiStepFeedback.setCurrentStep(currentStep)
-        featCount = boundaryLyr.featureCount()
-        if featCount == 0:
-            return pointDict
-        step = 100 / featCount
-        for current, feat in enumerate(boundaryLyr.getFeatures()):
-            if multiStepFeedback.isCanceled():
-                break
-            geom = feat.geometry()
-            if geom is None or not geom.isGeosValid():
+        feedback.setProgressText('Procurando descontinuidades...')
+        layer = self.parameterAsVectorLayer(parameters,'INPUT_LAYER', context)
+        inputFields = self.parameterAsFields( parameters,'INPUT_FIELDS', context )
+        angle = self.parameterAsDouble(parameters,'INPUT_ANGLE', context)
+        maxLength = self.parameterAsDouble(parameters,'INPUT_MAX_SIZE', context)
+        allFeatures = layer.getFeatures()
+        if  maxLength>0:
+            expr = QgsExpression( "$length < " + str(maxLength))
+            allFeatures = layer.getFeatures(QgsFeatureRequest(expr))
+        pointsAndFields= []
+        for feature in allFeatures:
+            if feedback.isCanceled():
+                return {self.OUTPUT: "cancelado pelo usuário"}
+            featgeom = feature.geometry()
+            for geometry in featgeom.constGet():
+                ptFin = QgsGeometry.fromPointXY(QgsPointXY(geometry[-1]))
+                lineTouched = self.linesTouched(layer, feature, ptFin)
+            if len(lineTouched) == 0:
                 continue
-            id = feat["AUTO"]
-            pointList = geom.asMultiPoint() if geom.isMultipart() else [geom.asPoint()]
-            for point in pointList:
-                pointDict[point].add(id)
-            multiStepFeedback.setProgress(current * step)
-        return pointDict
+            smallerAngle = 360
+            for lineToBeSelected in lineTouched:
+                angMinus180 = abs(self.anglesBetweenLines(feature, lineToBeSelected, ptFin)-180)
+                if angMinus180<smallerAngle:
+                    smallerAngle=angMinus180
+                    line = lineToBeSelected
+            fieldsChanged = []
+            if self.anglesBetweenLines(feature, line, ptFin) < (180 + angle) and self.anglesBetweenLines(feature, line, ptFin) > (180 - angle):
+                fieldsChanged = self.changedFields(inputFields, feature, line)
+                nameOfFields = self.fieldsName(fieldsChanged, feature, line)
+                if len(fieldsChanged) == 0:
+                    continue
+                if [ptFin,nameOfFields] not in pointsAndFields:
+                    pointsAndFields.append([ptFin, nameOfFields])
+        newPoints = self.getLinesWithSmallerAngle(pointsAndFields, layer, inputFields)
+        if len(newPoints)==0:
+            return{self.OUTPUT: 'nenhuma descontinuidade encontrada'}
+        newLayer = self.outLayer(parameters, context, newPoints, layer, 4)
+        return{self.OUTPUT: newLayer}
 
-    def prepareFlagSink(self, parameters, source, wkbType, context, addFeatId=False):
-        (self.flagSink, self.flag_id) = self.prepareAndReturnFlagSink(
-            parameters, source, wkbType, context, self.FLAGS, addFeatId=addFeatId
-        )
+    def linesTouched(self, layer, feature, point):
+        lines = []
+        AreaOfInterest = feature.geometry().boundingBox()
+        request = QgsFeatureRequest().setFilterRect(AreaOfInterest)
+        for feat in layer.getFeatures(request):
+            if feat.geometry().intersects(point):
+                if str(feature.geometry())==str(feat.geometry()):
+                    continue
+                lines.append(feat)
+        return lines
+    
+    def adjacentPoint(self, line, point):
+        vertexPoint = line.geometry().closestVertexWithContext(point)[1]
+        adjpoints = line.geometry().adjacentVertices(vertexPoint)
+        adjptvertex = adjpoints[0]
+        if adjptvertex<0:
+            adjptvertex = adjpoints[1]
+        adjpt = line.geometry().vertexAt(adjptvertex)
+        return QgsPointXY(adjpt)
 
-    def prepareAndReturnFlagSink(
-        self, parameters, source, wkbType, context, UI_FIELD, addFeatId=False
-    ):
-        flagFields = self.getFlagFields(addFeatId=addFeatId)
-        (flagSink, flag_id) = self.parameterAsSink(
+    def anglesBetweenLines(self, line1, line2, point):
+        pointB = QgsPointXY(point.asPoint())
+        pointA = self.adjacentPoint(line1, pointB)
+        pointC = self.adjacentPoint(line2, pointB)
+        angleRad = QgsGeometryUtils().angleBetweenThreePoints(pointA.x(), pointA.y(), pointB.x(), pointB.y(), pointC.x(), pointC.y())
+        angle = math.degrees(angleRad)
+
+        return abs(angle)
+
+    def changedFields(self, inputFields, feature1, feature2):
+        equalFields = []
+        for field in inputFields:
+            if not feature1[field] == feature2[field]:
+                equalFields.append(field)
+        return equalFields
+
+    def fieldsName(self, inputFields, feature1, feature2):
+        text = ''
+        for field in inputFields:
+            value1 = feature1[field]
+            value2 = feature2[field]
+            if text =='':
+                text = str(field) + ": " + str(value1) + " e " + str(value2)
+            else:
+                text += ', ' + str(field) + ": " + str(value1) + " e " + str(value2)
+        return text
+    def getLinesWithSmallerAngle(self, pointsAndFields, lineLayer, inputFields):
+        pointsToBeRemoved = []
+        for point in pointsAndFields:
+            linesArray = []
+            for line in lineLayer.getFeatures():
+                for geometry in line.geometry().constGet():
+                    ptFin = QgsGeometry.fromPointXY(QgsPointXY(geometry[-1]))
+                    ptIni = QgsGeometry.fromPointXY(QgsPointXY(geometry[0]))
+                if ptFin.intersects(point[0]):
+                    linesArray.append([line, ptFin])
+                if ptIni.intersects(point[0]):
+                    linesArray.append([line, ptIni])
+            smallerAngle = 360
+            for i in range(len(linesArray)):
+                if i == len(linesArray)-1:
+                    continue
+                lineA = linesArray[i][0]
+                for j in range(i+1, len(linesArray)):
+                    lineB = linesArray[j][0]
+                    angMinus180 = abs(self.anglesBetweenLines(lineA, lineB, linesArray[i][1])-180)
+                    if angMinus180<smallerAngle:
+                        smallerAngle=angMinus180
+                        line1 = lineA
+                        line2 = lineB
+            fieldsChanged = []
+            fieldsChanged = self.changedFields(inputFields, line1, line2)
+            if len(fieldsChanged) == 0:
+                pointsToBeRemoved.append(point)
+        newPoints = [pt for pt in pointsAndFields if pt not in pointsToBeRemoved]
+        return newPoints
+    def outLayer(self, parameters, context, pointsAndFields, layer, geomType):
+        newField = QgsFields()
+        newField.append(QgsField('Campos que Mudaram', QVariant.String))
+        
+
+        (sink, newLayer) = self.parameterAsSink(
             parameters,
-            UI_FIELD,
+            self.OUTPUT,
             context,
-            flagFields,
-            wkbType,
-            source.sourceCrs() if source is not None else QgsProject.instance().crs(),
+            newField,
+            geomType,
+            layer.sourceCrs()
         )
-        if flagSink is None:
-            raise QgsProcessingException(self.invalidSinkError(parameters, UI_FIELD))
-        return (flagSink, flag_id)
-
-    def getFlagFields(self, addFeatId=False):
-        fields = QgsFields()
-        fields.append(QgsField("reason", QVariant.String))
-        if addFeatId:
-            fields.append(QgsField("featid", QVariant.String))
-        return fields
-
-    def flagFeature(self, flagGeom, flagText, featid=None, fromWkb=False, sink=None):
-        """
-        Creates and adds to flagSink a new flag with the reason.
-        :param flagGeom: (QgsGeometry) geometry of the flag;
-        :param flagText: (string) Text of the flag
-        """
-        flagSink = self.flagSink if sink is None else sink
-        newFeat = QgsFeature(self.getFlagFields(addFeatId=featid is not None))
-        newFeat["reason"] = flagText
-        if featid is not None:
-            newFeat["featid"] = featid
-        if fromWkb:
-            geom = QgsGeometry()
-            geom.fromWkb(flagGeom)
-            newFeat.setGeometry(geom)
-        else:
-            newFeat.setGeometry(flagGeom)
-        flagSink.addFeature(newFeat, QgsFeatureSink.FastInsert)
-
-    def runAddAutoIncrementalField(
-        self,
-        inputLyr,
-        context,
-        feedback=None,
-        outputLyr=None,
-        fieldName=None,
-        start=1,
-        sortAscending=True,
-        sortNullsFirst=False,
-        is_child_algorithm=False,
-    ):
-        fieldName = "featid" if fieldName is None else fieldName
-        outputLyr = "memory:" if outputLyr is None else outputLyr
-        parameters = {
-            "INPUT": inputLyr,
-            "FIELD_NAME": fieldName,
-            "START": start,
-            "GROUP_FIELDS": [],
-            "SORT_EXPRESSION": "",
-            "SORT_ASCENDING": sortAscending,
-            "SORT_NULLS_FIRST": sortNullsFirst,
-            "OUTPUT": outputLyr,
-        }
-        output = processing.run(
-            "native:addautoincrementalfield",
-            parameters,
-            context=context,
-            feedback=feedback,
-            is_child_algorithm=is_child_algorithm,
-        )
-        return output["OUTPUT"]
-
-    def runMultipartToSingleParts(
-        self,
-        inputLayer,
-        context,
-        feedback=None,
-        outputLyr=None,
-        is_child_algorithm=False,
-    ):
-        outputLyr = "memory:" if outputLyr is None else outputLyr
-        parameters = {"INPUT": inputLayer, "OUTPUT": outputLyr}
-        output = processing.run(
-            "native:multiparttosingleparts",
-            parameters,
-            context=context,
-            feedback=feedback,
-            is_child_algorithm=is_child_algorithm,
-        )
-        return output["OUTPUT"]
-
-    def runMergeVectorLayers(
-        self, inputList, context, feedback=None, outputLyr=None, crs=None
-    ):
-        outputLyr = "memory:" if outputLyr is None else outputLyr
-        parameters = {"LAYERS": inputList, "CRS": crs, "OUTPUT": outputLyr}
-        output = processing.run(
-            "native:mergevectorlayers", parameters, context=context, feedback=feedback
-        )
-        return output["OUTPUT"]
-
-    def runCreateSpatialIndex(
-        self, inputLyr, context, feedback=None, is_child_algorithm=False
-    ):
-        processing.run(
-            "native:createspatialindex",
-            {"INPUT": inputLyr},
-            feedback=feedback,
-            context=context,
-            is_child_algorithm=is_child_algorithm,
-        )
-
-
+        
+        for feature in pointsAndFields:
+            newFeat = QgsFeature()
+            newFeat.setGeometry(feature[0])
+            newFeat.setFields(newField)
+            newFeat['Campos que Mudaram'] = feature[1]
+            sink.addFeature(newFeat, QgsFeatureSink.FastInsert)
+        
+        return newLayer
+    
     def name(self):
-        return "identifica_linhas_conectadas_com_mesmo_conjunto_de_atributos"
+        return "identifica_mudanca_de_atributos_em_linhas_conectadas"
 
     def displayName(self):
         return (
-            "Identificar linhas conectadas com mesmo conjunto de atributos"
+            "Identificar mudança de atributos em linhas conectadas"
         )
 
     def group(self):
