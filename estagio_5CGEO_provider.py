@@ -34,6 +34,7 @@ __revision__ = '$Format:%H$'
 from qgis.core import QgsProcessingProvider
 from .algorithms.proj1_identifica_poligonos_vizinhos_sem_mudanca_atributo import Projeto1Solucao
 from .algorithms.proj2_identifica_mudanca_atributo_linha import Projeto2Solucao
+from .algorithms.proj3_identifica_vizinhos_pequenos_sem_mudanca_atributo import Projeto3Solucao
 from .algorithms.proj4_fechar_linhas import Projeto4Solucao
 from .algorithms.proj5_aparar_linhas import Projeto5Solucao
 from .algorithms.proj6_expandir_linhas import Projeto6Solucao
@@ -59,6 +60,7 @@ class Estagio5CGEOProvider(QgsProcessingProvider):
         """
         self.addAlgorithm(Projeto1Solucao())
         self.addAlgorithm(Projeto2Solucao())
+        self.addAlgorithm(Projeto3Solucao())
         self.addAlgorithm(Projeto4Solucao())
         self.addAlgorithm(Projeto5Solucao())
         self.addAlgorithm(Projeto6Solucao())
