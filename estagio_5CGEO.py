@@ -116,10 +116,17 @@ class Estagio5CGEOPlugin(object):
                         dist1 = vertice.distance(QgsPointXY(ponto_inicial))
                         dist2 = vertice.distance(QgsPointXY(ponto_final))
                     
-                        if dist1 < tol: new_geometry = QgsGeometry.fromPolyline([QgsPoint(vertice), ponto_final])
-                        elif dist2 < tol: new_geometry = QgsGeometry.fromPolyline([ponto_inicial, QgsPoint(vertice)])
+                        if dist1 < tol: 
+                            vertices[0] = vertice
+                            new_line = [QgsPoint(point.x(), point.y()) for point in vertices]
+                        
+                        elif dist2 < tol:
+                            vertices[-1] = vertice
+                            new_line = [QgsPoint(point.x(), point.y()) for point in vertices]
+
                         else: continue
 
+                        new_geometry = QgsGeometry.fromPolyline(new_line)               
                         linhas.setGeometry(new_geometry)
                         inputLyr.updateFeature(linhas)
                         self.iface.messageBar().pushMessage(f'Linha {linhas.id()} foi aparada.')
