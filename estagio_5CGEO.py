@@ -168,43 +168,53 @@ class Estagio5CGEOPlugin(object):
            #Criação de uma camada de linhas de interseção entre os produtos
             for linhas in inputFeat: 
                 geometria = linhas.geometry()
-                        
+                #feedback.pushInfo(f'\nA linha {linhas} do tipo {type(linhas)} e a geometria {geometria} do tipo {type(geometria)}.')
                 for parts in geometria.parts():vertices = list(parts)
-                                
-                ponto_inicial = vertices[0]
+
+                #Primeira extremidade da linha
+                ponto_inicial = vertices[1]
+                ponto_final = vertices[0]
+                self.operation(ponto_inicial, ponto_final, inputFeat, linhas, geometria, tol, vertices, 1, inputLyr)
+
+                #Segunda extremidade da linha
+                ponto_inicial = vertices[-2]
                 ponto_final = vertices[-1]
+                self.operation(ponto_inicial, ponto_final, inputFeat, linhas, geometria, tol, vertices, 2, inputLyr)
 
-                #Obtenção do vetor direção
-                vetor_direcao = ponto_final - ponto_inicial
+    def operation(self, ponto_inicial, ponto_final, inputFeat, linhas, geometria, tol, vertices, extremidade, inputLyr):
+        extremidade = extremidade
+        #Obtenção do vetor direção
+        vetor_direcao = ponto_final - ponto_inicial
 
-                #Obtenção do comprimento do vetor
-                comprimento_vetor = (vetor_direcao.x()**2 + vetor_direcao.y()**2)**0.5
-            
-                # Normaliza o vetor direção
-                if comprimento_vetor > 0:
-                    vetor_direcao = QgsPoint(vetor_direcao.x() / comprimento_vetor, vetor_direcao.y() / comprimento_vetor)
-                
-                ponto_inicial_extendido = QgsPoint(ponto_inicial.x() - tol * vetor_direcao.x(), ponto_inicial.y() - tol * vetor_direcao.y())
-                ponto_final_extendido = QgsPoint(ponto_final.x() + tol * vetor_direcao.x(), ponto_final.y() + tol * vetor_direcao.y())
-                linha_extendida = QgsGeometry.fromPolyline([ponto_inicial_extendido, ponto_final_extendido])
+        #Obtenção do comprimento do vetor
+        comprimento_vetor = (vetor_direcao.x()**2 + vetor_direcao.y()**2)**0.5
+        
+        # Normaliza o vetor direção
+        if comprimento_vetor > 0:
+            vetor_direcao = QgsPoint(vetor_direcao.x() / comprimento_vetor, vetor_direcao.y() / comprimento_vetor)
+        
+        ponto_inicial_extendido = QgsPoint(ponto_inicial.x() - tol * vetor_direcao.x(), ponto_inicial.y() - tol * vetor_direcao.y())
+        ponto_final_extendido = QgsPoint(ponto_final.x() + tol * vetor_direcao.x(), ponto_final.y() + tol * vetor_direcao.y())
+        linha_extendida = QgsGeometry.fromPolyline([ponto_inicial_extendido, ponto_final_extendido])
+        
+        for lines in inputFeat:
+            geometry = lines.geometry()
 
-                for lines in inputFeat:
-                    geometry = lines.geometry()
+            if geometria.disjoint(geometry) and linha_extendida.intersects(geometry) and linhas.id() != lines.id():
+                ponto_referencia = linha_extendida.intersection(geometry).asPoint()
+                ponto_referencia = QgsPoint(ponto_referencia.x() + 1 * vetor_direcao.x(), ponto_referencia.y() + 1 * vetor_direcao.y()) #Está estendido em mais 1 metro
+                if extremidade == 1:
+                    vertices[0] = ponto_referencia
+                    linha_extendida = [point for point in vertices]
 
-                    if geometria.disjoint(geometry) and linha_extendida.intersects(geometry) and linhas.id() != lines.id():
-                        ponto_referencia = linha_extendida.intersection(geometry).asPoint()
-                        dist1 = ponto_referencia.distance(QgsPointXY(ponto_inicial))
-                        dist2 = ponto_referencia.distance(QgsPointXY(ponto_final))
+                else:
+                    vertices[-1] = ponto_referencia
+                    linha_extendida = [point for point in vertices]
 
-                        if dist1 < dist2:
-                            ponto_referencia = QgsPoint(ponto_referencia.x() - 1 * vetor_direcao.x(), ponto_referencia.y() - 1 * vetor_direcao.y()) #Está estendido em mais 1 metro
-                            linha_extendida = QgsGeometry.fromPolyline([ponto_referencia, ponto_final])
-                        else:
-                            ponto_referencia = QgsPoint(ponto_referencia.x() + 1 * vetor_direcao.x(), ponto_referencia.y() + 1 * vetor_direcao.y()) #Está estendido em mais 1 metro
-                            linha_extendida = QgsGeometry.fromPolyline([ponto_inicial, ponto_referencia])
-                        linhas.setGeometry(linha_extendida)
-                        inputLyr.updateFeature(linhas)
-                        self.iface.messageBar().pushMessage(f'Linha {linhas.id()} expandida.')
+                linha_extendida = QgsGeometry.fromPolyline(linha_extendida)               
+                linhas.setGeometry(linha_extendida)
+                inputLyr.updateFeature(linhas)
+                self.iface.messageBar().pushMessage(f'Linha {linhas.id()} expandida.')
         
     def run4(self): #Suavizar linhas
         inputLyr = iface.activeLayer()
