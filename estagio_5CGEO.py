@@ -154,13 +154,18 @@ class Estagio5CGEOPlugin(object):
                 distancia = ponto_final.distance(ponto_inicial)
 
                 #Condição para caso a distância entre os pontos extremos distam menor que a distancia minima
-                if distancia <= distance: vertices.append(ponto_inicial)
+                if distancia <= distance: 
+                    vertices.append(ponto_inicial)
+                    #Inserção da linha fechada à camada
+                    linha_fechada = QgsGeometry.fromPolyline(vertices)
+                    linhas.setGeometry(linha_fechada)
+                    inputLyr.updateFeature(linhas)
+                    self.iface.messageBar().pushMessage(f'Linha {linhas.id()} fechada.')
                 
-                #Inserção da linha fechada à camada
-                linha_fechada = QgsGeometry.fromPolyline(vertices)
-                linhas.setGeometry(linha_fechada)
-                inputLyr.updateFeature(linhas)
-                self.iface.messageBar().pushMessage(f'Linha {linhas.id()} fechada.')
+                else:
+                    self.iface.messageBar().pushMessage(f'A Linha {linhas.id()} possui extremidades com distância maior que a tolerância de {distance} metros.')
+                
+
 
     def run3(self): #Expandir linhas
         inputLyr = iface.activeLayer()
@@ -178,15 +183,21 @@ class Estagio5CGEOPlugin(object):
                 #feedback.pushInfo(f'\nA linha {linhas} do tipo {type(linhas)} e a geometria {geometria} do tipo {type(geometria)}.')
                 for parts in geometria.parts():vertices = list(parts)
 
-                #Primeira extremidade da linha
-                ponto_inicial = vertices[1]
-                ponto_final = vertices[0]
-                self.operation(ponto_inicial, ponto_final, inputFeat, linhas, geometria, tol, vertices, 1, inputLyr)
+                if len(vertices) == 2:
+                    ponto_inicial = vertices[1]
+                    ponto_final = vertices[0]
+                    self.operation(ponto_inicial, ponto_final, inputFeat, linhas, geometria, tol, vertices, 3, inputLyr)
+                
+                else:
+                    #Primeira extremidade da linha
+                    ponto_inicial = vertices[1]
+                    ponto_final = vertices[0]
+                    self.operation(ponto_inicial, ponto_final, inputFeat, linhas, geometria, tol, vertices, 1, inputLyr)
 
-                #Segunda extremidade da linha
-                ponto_inicial = vertices[-2]
-                ponto_final = vertices[-1]
-                self.operation(ponto_inicial, ponto_final, inputFeat, linhas, geometria, tol, vertices, 2, inputLyr)
+                    #Segunda extremidade da linha
+                    ponto_inicial = vertices[-2]
+                    ponto_final = vertices[-1]
+                    self.operation(ponto_inicial, ponto_final, inputFeat, linhas, geometria, tol, vertices, 2, inputLyr)
 
     def operation(self, ponto_inicial, ponto_final, inputFeat, linhas, geometria, tol, vertices, extremidade, inputLyr):
         extremidade = extremidade
@@ -209,16 +220,28 @@ class Estagio5CGEOPlugin(object):
 
             if geometria.disjoint(geometry) and linha_extendida.intersects(geometry) and linhas.id() != lines.id():
                 ponto_referencia = linha_extendida.intersection(geometry).asPoint()
+                dist1 = ponto_referencia.distance(QgsPointXY(ponto_inicial))
+                dist2 = ponto_referencia.distance(QgsPointXY(ponto_final))
                 ponto_referencia = QgsPoint(ponto_referencia.x() + 1 * vetor_direcao.x(), ponto_referencia.y() + 1 * vetor_direcao.y()) #Está estendido em mais 1 metro
+                ponto_referencia_2 = QgsPoint(ponto_referencia.x() - 1 * vetor_direcao.x(), ponto_referencia.y() - 1 * vetor_direcao.y()) #Está estendido em mais 1 metro
+
                 if extremidade == 1:
                     vertices[0] = ponto_referencia
                     linha_extendida = [point for point in vertices]
+                    linha_extendida = QgsGeometry.fromPolyline(linha_extendida)
 
-                else:
+                elif extremidade == 2:
                     vertices[-1] = ponto_referencia
                     linha_extendida = [point for point in vertices]
+                    linha_extendida = QgsGeometry.fromPolyline(linha_extendida)
+                
+                elif extremidade == 3:
+                    if dist1 < tol:
+                        linha_extendida = QgsGeometry.fromPolyline([ponto_referencia_2, ponto_final])
+                    elif dist2 < tol:
+                        linha_extendida = QgsGeometry.fromPolyline([ponto_inicial, ponto_referencia])
 
-                linha_extendida = QgsGeometry.fromPolyline(linha_extendida)               
+                               
                 linhas.setGeometry(linha_extendida)
                 inputLyr.updateFeature(linhas)
                 self.iface.messageBar().pushMessage(f'Linha {linhas.id()} expandida.')
