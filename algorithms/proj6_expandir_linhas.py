@@ -101,21 +101,26 @@ class Projeto6Solucao(QgsProcessingAlgorithm):
             #feedback.pushInfo(f'\nA linha {linhas} do tipo {type(linhas)} e a geometria {geometria} do tipo {type(geometria)}.')
             for parts in geometria.parts():vertices = list(parts)
 
-            #Primeira extremidade da linha
-            ponto_inicial = vertices[1]
-            ponto_final = vertices[0]
-            self.operation(ponto_inicial, ponto_final, onlySelected, inputLyr, linhas, geometria, tol, vertices, 1, feedback)
+            if len(vertices) == 2:
+                ponto_inicial = vertices[1]
+                ponto_final = vertices[0]
+                self.operation(ponto_inicial, ponto_final, onlySelected, inputLyr, linhas, geometria, tol, vertices, 3, feedback)
+            
+            else:
+                #Primeira extremidade da linha
+                ponto_inicial = vertices[1]
+                ponto_final = vertices[0]
+                self.operation(ponto_inicial, ponto_final, onlySelected, inputLyr, linhas, geometria, tol, vertices, 1, feedback)
 
-            #Segunda extremidade da linha
-            ponto_inicial = vertices[-2]
-            ponto_final = vertices[-1]
-            self.operation(ponto_inicial, ponto_final, onlySelected, inputLyr, linhas, geometria, tol, vertices, 2, feedback)
+                #Segunda extremidade da linha
+                ponto_inicial = vertices[-2]
+                ponto_final = vertices[-1]
+                self.operation(ponto_inicial, ponto_final, onlySelected, inputLyr, linhas, geometria, tol, vertices, 2, feedback)
 
         return {self.OUTPUT: inputLyr}
 
     def operation(self, ponto_inicial, ponto_final, onlySelected, inputLyr, linhas, geometria, tol, vertices, extremidade, feedback):
         extremidade = extremidade
-
         #Obtenção do vetor direção
         vetor_direcao = ponto_final - ponto_inicial
 
@@ -141,20 +146,26 @@ class Projeto6Solucao(QgsProcessingAlgorithm):
 
             if geometria.disjoint(geometry) and linha_extendida.intersects(geometry) and linhas.id() != lines.id():
                 ponto_referencia = linha_extendida.intersection(geometry).asPoint()
-                #dist1 = ponto_referencia.distance(QgsPointXY(ponto_inicial))
-                #dist = ponto_referencia.distance(QgsPointXY(ponto_final))
+                dist1 = ponto_referencia.distance(QgsPointXY(ponto_inicial))
+                dist2 = ponto_referencia.distance(QgsPointXY(ponto_final))
                 ponto_referencia = QgsPoint(ponto_referencia.x() + 1 * vetor_direcao.x(), ponto_referencia.y() + 1 * vetor_direcao.y()) #Está estendido em mais 1 metro
+                ponto_referencia_2 = QgsPoint(ponto_referencia.x() - 1 * vetor_direcao.x(), ponto_referencia.y() - 1 * vetor_direcao.y()) #Está estendido em mais 1 metro
+
                 if extremidade == 1:
                     vertices[0] = ponto_referencia
                     linha_extendida = [point for point in vertices]
-                #    ponto_referencia = QgsPoint(ponto_referencia.x() - 1 * vetor_direcao.x(), ponto_referencia.y() - 1 * vetor_direcao.y()) #Está estendido em mais 1 metro
-                #    linha_extendida = QgsGeometry.fromPolyline([ponto_referencia, ponto_final])
-                else:
+                    linha_extendida = QgsGeometry.fromPolyline(linha_extendida)
+
+                elif extremidade == 2:
                     vertices[-1] = ponto_referencia
                     linha_extendida = [point for point in vertices]
+                    linha_extendida = QgsGeometry.fromPolyline(linha_extendida)
                 
-                feedback.pushInfo(f'\nA linha {linha_extendida} do tipo {type(linha_extendida)}.')
-                linha_extendida = QgsGeometry.fromPolyline(linha_extendida)               
+                elif extremidade == 3:
+                    if dist1 < tol: linha_extendida = QgsGeometry.fromPolyline([ponto_referencia_2, ponto_final])
+                    elif dist2 < tol: linha_extendida = QgsGeometry.fromPolyline([ponto_inicial, ponto_referencia])
+               
+                feedback.pushInfo(f'\nA linha {linha_extendida} do tipo {type(linha_extendida)}.')          
                 linhas.setGeometry(linha_extendida)
                 inputLyr.updateFeature(linhas)
 
