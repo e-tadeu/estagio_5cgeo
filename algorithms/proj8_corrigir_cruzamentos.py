@@ -67,7 +67,7 @@ from qgis.core import (QgsProcessing,
 import processing
 from PyQt5.QtGui import QColor
 
-class Projeto7Solucao(QgsProcessingAlgorithm):
+class Projeto8Solucao(QgsProcessingAlgorithm):
     """
     
     Este algoritmo realiza a revisão de ligação entre produtos.
@@ -206,7 +206,7 @@ class Projeto7Solucao(QgsProcessingAlgorithm):
         lowercase alphanumeric characters only and no spaces or other
         formatting characters.
         """
-        return 'Unificar linhas'
+        return 'Corrigir cruzamentos'
 
     def displayName(self):
         """
@@ -220,7 +220,7 @@ class Projeto7Solucao(QgsProcessingAlgorithm):
         Returns the name of the group this algorithm belongs to. This string
         should be localised.
         """
-        return 'Unificar linhas'
+        return 'Corrigir cruzamentos'
 
     """def groupId(self):
         
@@ -236,4 +236,4 @@ class Projeto7Solucao(QgsProcessingAlgorithm):
         return QCoreApplication.translate('Processing', string)
 
     def createInstance(self):
-        return Projeto7Solucao()
+        return Projeto8Solucao()
