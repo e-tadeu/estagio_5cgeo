@@ -38,6 +38,7 @@ from .algorithms.proj3_identifica_vizinhos_pequenos_sem_mudanca_atributo import 
 from .algorithms.proj4_fechar_linhas import Projeto4Solucao
 from .algorithms.proj5_aparar_linhas import Projeto5Solucao
 from .algorithms.proj6_expandir_linhas import Projeto6Solucao
+from .algorithms.proj8_corrigir_cruzamentos import Projeto8Solucao
 
 class Estagio5CGEOProvider(QgsProcessingProvider):
 
@@ -64,6 +65,7 @@ class Estagio5CGEOProvider(QgsProcessingProvider):
         self.addAlgorithm(Projeto4Solucao())
         self.addAlgorithm(Projeto5Solucao())
         self.addAlgorithm(Projeto6Solucao())
+        self.addAlgorithm(Projeto8Solucao())
 
     def id(self):
         """
