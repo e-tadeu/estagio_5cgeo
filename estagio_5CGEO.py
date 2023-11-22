@@ -135,7 +135,7 @@ class Estagio5CGEOPlugin(object):
     def run2(self): #Fechar linhas
         inputLyr = iface.activeLayer()
         distance = 10 #Pode ser ajustado conforme necessidade
-
+        
         # Check if a layer is selected
         if not inputLyr.selectedFeatures():
             iface.messageBar().pushMessage('Please select a feature',  level=Qgis.Critical)
@@ -171,6 +171,13 @@ class Estagio5CGEOPlugin(object):
         inputLyr = iface.activeLayer()
         inputFeat = inputLyr.selectedFeatures()
         tol = 10 #Pode ser ajustado conforme necessidade
+        from qgis.PyQt.QtCore import QVariant
+        from qgis.core import (QgsVectorLayer, QgsFeature, QgsField, QgsProject)
+        danglelayer = QgsVectorLayer(f"Point?crs={inputLyr.crs().authid()}",
+                                     "arestas_soltas",
+                                     "memory"
+                                     )
+        danglelayer.dataProvider().addAttributes([QgsField("id", QVariant.Int)])
 
         # Check if a layer is selected
         if not inputFeat or len(inputFeat) == 1:
@@ -184,20 +191,46 @@ class Estagio5CGEOPlugin(object):
                 for parts in geometria.parts():vertices = list(parts)
 
                 if len(vertices) == 2:
+                    iface.messageBar().pushMessage(f'A feição {linhas.id()} possui 2 vértices',  level=Qgis.Critical)
                     ponto_inicial = vertices[1]
                     ponto_final = vertices[0]
                     self.operation(ponto_inicial, ponto_final, inputFeat, linhas, geometria, tol, vertices, 3, inputLyr)
+                    feature = QgsFeature()
+                    feature.setGeometry(ponto_inicial)
+                    danglelayer.dataProvider().addFeature(feature)
+                    danglelayer.updateExtents()
+                    feature = QgsFeature()
+                    feature.setGeometry(ponto_final)
+                    danglelayer.dataProvider().addFeature(feature)
+                    danglelayer.updateExtents()
                 
                 else:
                     #Primeira extremidade da linha
                     ponto_inicial = vertices[1]
                     ponto_final = vertices[0]
                     self.operation(ponto_inicial, ponto_final, inputFeat, linhas, geometria, tol, vertices, 1, inputLyr)
+                    feature = QgsFeature()
+                    feature.setGeometry(ponto_inicial)
+                    danglelayer.dataProvider().addFeature(feature)
+                    danglelayer.updateExtents()
+                    feature = QgsFeature()
+                    feature.setGeometry(ponto_final)
+                    danglelayer.dataProvider().addFeature(feature)
+                    danglelayer.updateExtents()
 
                     #Segunda extremidade da linha
                     ponto_inicial = vertices[-2]
                     ponto_final = vertices[-1]
                     self.operation(ponto_inicial, ponto_final, inputFeat, linhas, geometria, tol, vertices, 2, inputLyr)
+                    feature = QgsFeature()
+                    feature.setGeometry(ponto_inicial)
+                    danglelayer.dataProvider().addFeature(feature)
+                    danglelayer.updateExtents()
+                    feature = QgsFeature()
+                    feature.setGeometry(ponto_final)
+                    danglelayer.dataProvider().addFeature(feature)
+                    danglelayer.updateExtents()
+        QgsProject.instance().addMapLayer(danglelayer)
 
     def operation(self, ponto_inicial, ponto_final, inputFeat, linhas, geometria, tol, vertices, extremidade, inputLyr):
         extremidade = extremidade
@@ -236,9 +269,9 @@ class Estagio5CGEOPlugin(object):
                     linha_extendida = QgsGeometry.fromPolyline(linha_extendida)
                 
                 elif extremidade == 3:
-                    if dist1 < tol:
+                    if dist1 <= tol:
                         linha_extendida = QgsGeometry.fromPolyline([ponto_referencia_2, ponto_final])
-                    elif dist2 < tol:
+                    elif dist2 <= tol:
                         linha_extendida = QgsGeometry.fromPolyline([ponto_inicial, ponto_referencia])
 
                                
