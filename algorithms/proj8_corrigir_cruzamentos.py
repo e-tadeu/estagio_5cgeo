@@ -36,34 +36,21 @@ from code import interact
 from qgis.PyQt.QtCore import QCoreApplication
 from qgis.PyQt.Qt import QVariant, QCoreApplication
 from qgis.core import (QgsProcessing,
-                       QgsProject,
-                       QgsFeatureSink,
                        QgsProcessingAlgorithm,
                        QgsProcessingParameterFeatureSink,
-                       QgsProcessingParameterFeatureSource,
-                       QgsProcessingParameterNumber,
-                       QgsProcessingException,
-                       QgsWkbTypes,
-                       QgsExpressionContextUtils,
-                       QgsPointXY,
                        QgsPoint,
-                       QgsPointLocator,
-                       QgsSpatialIndex,
-                       QgsFeatureSink,
-                       QgsFields,
-                       QgsField,
                        QgsFeature,
                        QgsExpression,
                        QgsVectorLayer,
+                       QgsProcessingParameterDistance,
                        QgsProcessingMultiStepFeedback,
                        QgsProcessingParameterVectorLayer,
+                       QgsProject,
                        QgsFields,
                        QgsFeature,
                        QgsField,
                        QgsGeometry,
-                       QgsGeometryUtils,
-                       QgsGeometryCollection,
-                       QgsMarkerSymbol)
+                       QgsGeometryUtils)
 import processing
 from PyQt5.QtGui import QColor
 
@@ -75,20 +62,39 @@ class Projeto8Solucao(QgsProcessingAlgorithm):
     """
     # Camadas de input
     VIAS = 'VIAS'
+    INPUT_MAX_SIZE = 'INPUT_MAX_SIZE'
     # Camadas de output
     OUTPUT = 'OUTPUT'
 
     def initAlgorithm(self, config):
         
-        self.addParameter(QgsProcessingParameterVectorLayer(self.VIAS, self.tr('Insira a camada de rodovias'), 
-                                                            types=[QgsProcessing.TypeVectorLine], 
-                                                            defaultValue=None))
+        self.addParameter(
+            QgsProcessingParameterVectorLayer(
+                self.VIAS, 
+                self.tr('Insira a camada de vias'), 
+                types=[QgsProcessing.TypeVectorLine], 
+                defaultValue=None)
+            )
+        
+        self.addParameter(
+            QgsProcessingParameterDistance(
+                'INPUT_MAX_SIZE',
+                self.tr('Insira o comprimento máximo das vias pequenas'), 
+                parentParameterName = 'VIAS',
+                optional = False,
+                minValue=0,
+                defaultValue=0.005)
+            )
 
-        self.addParameter(QgsProcessingParameterFeatureSink(self.OUTPUT, self.tr('Vias unificadas'), 
-                                                            type=QgsProcessing.TypeVectorLine, 
-                                                            createByDefault=True, 
-                                                            supportsAppend=True, 
-                                                            defaultValue='TEMPORARY_OUTPUT'))
+        self.addParameter(
+            QgsProcessingParameterFeatureSink(
+                self.OUTPUT, 
+                self.tr('Vias unificadas'), 
+                type=QgsProcessing.TypeVectorLine, 
+                createByDefault=True, 
+                supportsAppend=True, 
+                defaultValue='TEMPORARY_OUTPUT')
+            )
         
         
     def processAlgorithm(self, parameters, context, feedback):
@@ -96,107 +102,62 @@ class Projeto8Solucao(QgsProcessingAlgorithm):
         Here is where the processing itself takes place.
         """
         vias = self.parameterAsVectorLayer(parameters,self.VIAS,context)
+        alcance_max = self.parameterAsDouble(parameters,self.INPUT_MAX_SIZE, context)
 
         #Criação da camada de saída do tipo ponto com o tipo de erro
-        fields = vias.fields()
-        (output_sink, output_dest_id) = self.parameterAsSink(parameters,
-                                                            self.OUTPUT,
-                                                            context,
-                                                            fields,
-                                                            2, #2 é para tipo linha, 1 é para tipo ponto
-                                                            vias.sourceCrs())
+        #fields = vias.fields()
+        #(output_sink, output_dest_id) = self.parameterAsSink(parameters,
+        #                                                    self.OUTPUT,
+        #                                                    context,
+        #                                                    fields,
+        #                                                    2, #2 é para tipo linha, 1 é para tipo ponto
+        #                                                    vias.sourceCrs())
 
-        for linhas in vias.getFeatures():
-            geomline = linhas.geometry()
-            for parts in geomline.parts(): vertices = list(parts)
-            startpoint = vertices[0]
-            endpoint = vertices[1]
-            coeficientes = QgsGeometryUtils.coefficients(startpoint, endpoint) #o terceiro elemento da tupla é a Constante da equação
-            constante = coeficientes[0]/coeficientes[1] #Divide o coeficiente de x pelo coeficiente de y (a/b x + y + c/b = 0)
-            gradiente = QgsGeometryUtils.gradient(startpoint,endpoint)
-            #feedback.pushInfo(f'\nA linha {geomline} contém a constante {coeficientes[2]} e gradiente {gradiente}.')
+        #Criação da lista de feições de linhas pequenas
+        smallLines = list()       
+        for lyr in vias.getFeatures():
+            length = lyr.geometry().length()
+            if length < alcance_max: smallLines.append(lyr)
 
-            #Criação de uma área de busca que dista 9,5 metros da linha com 8 vértices no arredondamento
-            area_busca = geomline.buffer(9.5, 8)
-            bbox = area_busca.boundingBox()
-        
+
+        #pointsflag = QgsVectorLayer(f"LineString?crs={vias.crs().authid()}",
+        #                             "newlines",
+        #                             "memory"
+        #                             )
+        #pointsflag.dataProvider().addAttributes([QgsField("id", QVariant.Int)])
+
+        for linesmall in smallLines:
+            point_reference = False
+            geomline = linesmall.geometry()
+            bbox = geomline.boundingBox()
+            #feedback.pushInfo(f'\nA linha {geomline} é uma linha pequena.')
             for line in vias.getFeatures(bbox):
                 geomline2 = line.geometry()
-                atributos = line.attributes()
-                if geomline.equals(geomline2) or geomline2.disjoint(area_busca): continue
-                #feedback.pushInfo(f'\nA linha {geomline} são diferentes {geomline2}.')
+                if geomline.equals(geomline2): continue
+                    #feedback.pushInfo(f'\nA via {line} foi deletada.')
                 
-                for parts in geomline2.parts(): vertices = list(parts)
-                startpoint2 = vertices[0]
-                endpoint2 = vertices[1]
-                coeficientes2 = QgsGeometryUtils.coefficients(startpoint2, endpoint2) #o terceiro elemento da tupla é a Constante da equação
-                constante2 = coeficientes2[0]/coeficientes2[1] 
-                gradiente2 = QgsGeometryUtils.gradient(startpoint2,endpoint2)
-
-                #Verificação pelos gradientes se provavelmente são de mesma via.
-                flag = False
-                dif1 = abs(gradiente-gradiente2) #Diferença entre gradientes
-                dif2 = abs(constante-constante2) #Diferença entre coeficientes x das equações da reta
-                if (dif1 <= 0.01) and (dif2 <= 0.01): flag = True #tolerância de 1 centésimo e constantes que distam de 2m
-                    
-                if flag == True:
-                    dist1 = startpoint.distance(startpoint2)
-                    dist2 = startpoint.distance(endpoint2)
-
-                    if dist1 < dist2:
-                        #Ponto 1
-                        x_media = (startpoint.x() + startpoint2.x())/2
-                        y_media = (startpoint.y() + startpoint2.y())/2
-                        p_1 = QgsPoint(x_media, y_media)
-
-                        #Ponto 2
-                        x_media = (endpoint.x() + endpoint2.x())/2
-                        y_media = (endpoint.y() + endpoint2.y())/2
-                        p_2 = QgsPoint(x_media, y_media)
-
+                if point_reference == False: 
+                    pointflag = geomline.intersection(geomline2)
+                    point_reference = True
+                
+                else:
+                    if geomline2.intersects(pointflag): continue #feedback.pushInfo(f'\nA linha {geomline2} intersecta {pointflag}.') #continue
                     else:
-                        #Ponto 1
-                        x_media = (startpoint.x() + endpoint2.x())/2
-                        y_media = (startpoint.y() + endpoint2.y())/2
-                        p_1 = QgsPoint(x_media, y_media)
+                        for parts in geomline2.parts(): vertices = list(parts)
+                        for i in range (0, len(vertices)):
+                            #feedback.pushInfo(f'\nO vértice {vertices[i]} é do tipo {type(vertices[i])}. E a {pointflag} é do tipo {type(pointflag)}.')
+                            if bbox.xMinimum() <= vertices[i].x() <= bbox.xMaximum() and bbox.yMinimum() <= vertices[i].y() <= bbox.yMaximum(): vertices[i] = QgsPoint(pointflag.asPoint())
+                        new_line = QgsGeometry.fromPolyline(vertices)          
+                        line.setGeometry(new_line)
+                        vias.updateFeature(line)
 
-                        #Ponto 2
-                        x_media = (endpoint.x() + startpoint2.x())/2
-                        y_media = (endpoint.y() + startpoint2.y())/2
-                        p_2 = QgsPoint(x_media, y_media)
+            #Deletando as linhas pequenas
+            for line in vias.getFeatures(bbox):
+                geomline2 = line.geometry()
+                if geomline.equals(geomline2): vias.deleteFeature(line.id()) 
+            
 
-                    # Criação da linha média
-                    newline = QgsGeometry.fromPolyline([p_1, p_2])
-
-                    # Comprimento da extensão desejada (4,5 metros)
-                    extensao = 4.5  # Este comprimento corresponde a aproximadamente metada da largura da via
-
-                    # Calcula o vetor direção da linha
-                    ponto_inicial = QgsPoint(newline.asPolyline()[0])
-                    ponto_final = QgsPoint(newline.asPolyline()[-1])
-                    vetor_direcao = ponto_final - ponto_inicial
-
-                    # Calcula o comprimento do vetor direção
-                    comprimento_vetor = (vetor_direcao.x()**2 + vetor_direcao.y()**2)**0.5
-
-                    # Normaliza o vetor direção
-                    if comprimento_vetor > 0:
-                        vetor_direcao = QgsPoint(vetor_direcao.x() / comprimento_vetor, vetor_direcao.y() / comprimento_vetor)
-
-                    # Extende a linha no início e no final
-                    ponto_inicial_extendido = QgsPoint(ponto_inicial.x() - extensao * vetor_direcao.x(), ponto_inicial.y() - extensao * vetor_direcao.y())
-                    ponto_final_extendido = QgsPoint(ponto_final.x() + extensao * vetor_direcao.x(), ponto_final.y() + extensao * vetor_direcao.y())
-                    linha_extendida = QgsGeometry.fromPolyline([ponto_inicial_extendido, ponto_final_extendido])
-
-                    feature = QgsFeature(fields)
-                    feature.setGeometry(linha_extendida)
-                    feature.setAttributes(atributos)
-                    output_sink.addFeatures([feature])
-
-                #feedback.pushInfo(f'\nA linha {geomline} de gradiente {gradiente} e a linha {geomline2} de gradiente {gradiente2} provavelmente são da mesma via. Uma possui a constante {constante} e a outra possui a constante {constante2}.')
-                #Verificação das constantes das vias. Caso tenham constante próximas, provavelmente estão na mesma equação de reta, ou seja, não quero.
-                #feedback.pushInfo(f'\nA linha {geomline} contém a constante {coeficientes[2]} e gradiente {gradiente}\n a {geomline2} contém a constante {coeficientes2[2]} e gradiente {gradiente2}.')
-        return {self.OUTPUT: output_dest_id}
+        return {self.OUTPUT: vias}
 
     def name(self):
         """
