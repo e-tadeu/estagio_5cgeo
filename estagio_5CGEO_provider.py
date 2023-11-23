@@ -39,6 +39,7 @@ from .algorithms.proj4_fechar_linhas import Projeto4Solucao
 from .algorithms.proj5_aparar_linhas import Projeto5Solucao
 from .algorithms.proj6_expandir_linhas import Projeto6Solucao
 from .algorithms.proj8_corrigir_cruzamentos import Projeto8Solucao
+from .algorithms.proj9_mesclar_linhas_pequenas import Projeto9Solucao
 
 class Estagio5CGEOProvider(QgsProcessingProvider):
 
@@ -66,6 +67,7 @@ class Estagio5CGEOProvider(QgsProcessingProvider):
         self.addAlgorithm(Projeto5Solucao())
         self.addAlgorithm(Projeto6Solucao())
         self.addAlgorithm(Projeto8Solucao())
+        self.addAlgorithm(Projeto9Solucao())
 
     def id(self):
         """
