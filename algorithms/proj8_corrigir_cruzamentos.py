@@ -50,7 +50,8 @@ from qgis.core import (QgsProcessing,
                        QgsFeature,
                        QgsField,
                        QgsGeometry,
-                       QgsGeometryUtils)
+                       QgsGeometryUtils,
+                       QgsWkbTypes)
 import processing
 from PyQt5.QtGui import QColor
 
@@ -89,7 +90,7 @@ class Projeto8Solucao(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterFeatureSink(
                 self.OUTPUT, 
-                self.tr('Vias unificadas'), 
+                self.tr('Vias com cruzamentos corrigidos'), 
                 type=QgsProcessing.TypeVectorLine, 
                 createByDefault=True, 
                 supportsAppend=True, 
@@ -119,33 +120,30 @@ class Projeto8Solucao(QgsProcessingAlgorithm):
             length = lyr.geometry().length()
             if length < alcance_max: smallLines.append(lyr)
 
-
-        #pointsflag = QgsVectorLayer(f"LineString?crs={vias.crs().authid()}",
-        #                             "newlines",
-        #                             "memory"
-        #                             )
-        #pointsflag.dataProvider().addAttributes([QgsField("id", QVariant.Int)])
-
+        vias.startEditing()
         for linesmall in smallLines:
             point_reference = False
             geomline = linesmall.geometry()
             bbox = geomline.boundingBox()
-            #feedback.pushInfo(f'\nA linha {geomline} é uma linha pequena.')
+
             for line in vias.getFeatures(bbox):
                 geomline2 = line.geometry()
                 if geomline.equals(geomline2): continue
-                    #feedback.pushInfo(f'\nA via {line} foi deletada.')
+
                 
                 if point_reference == False: 
                     pointflag = geomline.intersection(geomline2)
-                    point_reference = True
+                    if pointflag.wkbType() == QgsWkbTypes.Point: point_reference = True
+                    elif pointflag == QgsWkbTypes.LineString or pointflag == QgsWkbTypes.MultiLineString:
+                        for parts in pointflag.parts: vertex = list(parts)
+                        pointflag = QgsGeometry.fromPoint(vertex[0])
+                        point_reference = True
                 
                 else:
-                    if geomline2.intersects(pointflag): continue #feedback.pushInfo(f'\nA linha {geomline2} intersecta {pointflag}.') #continue
+                    if geomline2.intersects(pointflag): continue
                     else:
                         for parts in geomline2.parts(): vertices = list(parts)
                         for i in range (0, len(vertices)):
-                            #feedback.pushInfo(f'\nO vértice {vertices[i]} é do tipo {type(vertices[i])}. E a {pointflag} é do tipo {type(pointflag)}.')
                             if bbox.xMinimum() <= vertices[i].x() <= bbox.xMaximum() and bbox.yMinimum() <= vertices[i].y() <= bbox.yMaximum(): vertices[i] = QgsPoint(pointflag.asPoint())
                         new_line = QgsGeometry.fromPolyline(vertices)          
                         line.setGeometry(new_line)
@@ -154,9 +152,8 @@ class Projeto8Solucao(QgsProcessingAlgorithm):
             #Deletando as linhas pequenas
             for line in vias.getFeatures(bbox):
                 geomline2 = line.geometry()
-                if geomline.equals(geomline2): vias.deleteFeature(line.id()) 
-            
-
+                if geomline.equals(geomline2): vias.deleteFeature(line.id())
+                    
         return {self.OUTPUT: vias}
 
     def name(self):
