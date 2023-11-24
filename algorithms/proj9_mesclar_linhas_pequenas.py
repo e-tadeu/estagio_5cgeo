@@ -40,9 +40,11 @@ from qgis.core import (QgsProcessing,
                        QgsProcessingParameterFeatureSink,
                        QgsPoint,
                        QgsFeature,
+                       QgsFeatureRequest,
                        QgsExpression,
                        QgsVectorLayer,
                        QgsProcessingParameterDistance,
+                       QgsProcessingParameterNumber,
                        QgsProcessingMultiStepFeedback,
                        QgsProcessingParameterVectorLayer,
                        QgsProject,
@@ -51,9 +53,11 @@ from qgis.core import (QgsProcessing,
                        QgsField,
                        QgsGeometry,
                        QgsGeometryUtils,
+                       QgsPointXY,
                        QgsWkbTypes)
 import processing
 from PyQt5.QtGui import QColor
+import math
 
 class Projeto9Solucao(QgsProcessingAlgorithm):
     """
@@ -64,6 +68,7 @@ class Projeto9Solucao(QgsProcessingAlgorithm):
     # Camadas de input
     VIAS = 'VIAS'
     INPUT_MAX_SIZE = 'INPUT_MAX_SIZE'
+    INPUT_ANGLE = 'INPUT_ANGLE'
     # Camadas de output
     OUTPUT = 'OUTPUT'
 
@@ -86,7 +91,15 @@ class Projeto9Solucao(QgsProcessingAlgorithm):
                 minValue=0,
                 defaultValue=0.005)
             )
-
+        
+        self.addParameter(
+            QgsProcessingParameterNumber(
+                'INPUT_ANGLE',
+                self.tr('Insira o desvio máximo (em graus) para detectar continuidade'), 
+                type=QgsProcessingParameterNumber.Double, 
+                minValue=0)
+            )
+        
         self.addParameter(
             QgsProcessingParameterFeatureSink(
                 self.OUTPUT, 
@@ -104,15 +117,7 @@ class Projeto9Solucao(QgsProcessingAlgorithm):
         """
         vias = self.parameterAsVectorLayer(parameters,self.VIAS,context)
         alcance_max = self.parameterAsDouble(parameters,self.INPUT_MAX_SIZE, context)
-
-        #Criação da camada de saída do tipo ponto com o tipo de erro
-        #fields = vias.fields()
-        #(output_sink, output_dest_id) = self.parameterAsSink(parameters,
-        #                                                    self.OUTPUT,
-        #                                                    context,
-        #                                                    fields,
-        #                                                    2, #2 é para tipo linha, 1 é para tipo ponto
-        #                                                    vias.sourceCrs())
+        angle = self.parameterAsDouble(parameters,self.INPUT_ANGLE, context)
 
         #Criação da lista de feições de linhas pequenas
         smallLines = list()       
@@ -120,42 +125,86 @@ class Projeto9Solucao(QgsProcessingAlgorithm):
             length = lyr.geometry().length()
             if length < alcance_max: smallLines.append(lyr)
 
+        #pointsflag = QgsVectorLayer(f"LineString?crs={vias.crs().authid()}",
+        #                             "newlines",
+        #                             "memory"
+        #                             )
+        #pointsflag.dataProvider().addAttributes([QgsField("id", QVariant.Int)])
+        
         vias.startEditing()
-        for linesmall in smallLines:
-            point_reference = False
-            geomline = linesmall.geometry()
-            bbox = geomline.boundingBox()
+        for feature in smallLines:
+            if feedback.isCanceled():
+                return {self.OUTPUT: "cancelado pelo usuário"}
+            featgeom = feature.geometry()
+            for geometry in featgeom.constGet():
+                ptFin = QgsGeometry.fromPointXY(QgsPointXY(geometry[0])) #O original é -1. para exemplo colocarei 0
+                lineTouched = self.linesTouched(vias, feature, ptFin)
 
-            for line in vias.getFeatures(bbox):
-                geomline2 = line.geometry()
-                if geomline.equals(geomline2): continue
+            if len(lineTouched) == 0:
+                continue
+            #Aqui ele verificou quais linhas tocaram no último vértice da linha pequena
 
-                
-                if point_reference == False: 
-                    pointflag = geomline.intersection(geomline2)
-                    if pointflag.wkbType() == QgsWkbTypes.Point: point_reference = True
-                    elif pointflag == QgsWkbTypes.LineString or pointflag == QgsWkbTypes.MultiLineString:
-                        for parts in pointflag.parts: vertex = list(parts)
-                        pointflag = QgsGeometry.fromPoint(vertex[0])
-                        point_reference = True
-                
-                else:
-                    if geomline2.intersects(pointflag): continue
-                    else:
-                        for parts in geomline2.parts(): vertices = list(parts)
-                        for i in range (0, len(vertices)):
-                            if bbox.xMinimum() <= vertices[i].x() <= bbox.xMaximum() and bbox.yMinimum() <= vertices[i].y() <= bbox.yMaximum(): vertices[i] = QgsPoint(pointflag.asPoint())
-                        new_line = QgsGeometry.fromPolyline(vertices)          
-                        line.setGeometry(new_line)
-                        vias.updateFeature(line)
+            #2ª parte
+            smallerAngle = 360
+            for lineToBeSelected in lineTouched:
+                angMinus180 = abs(self.anglesBetweenLines(feature, lineToBeSelected, ptFin)-180)
+                #feedback.pushInfo(f'O ângulo entre as linhas {feature} e {geometry} é de {angMinus180}.')
+                #feedback.pushInfo(f'A linha {lineToBeSelected} é do tipo {type(lineToBeSelected)}.')
+                if angMinus180<smallerAngle:
+                    smallerAngle=angMinus180
+                    line = lineToBeSelected
+            #Até aqui, ele calcula o ângulo entre a linha pequena e as linhas que a tocam, e separa as linhas menores que a tolerancia 
 
-            #Deletando as linhas pequenas
-            for line in vias.getFeatures(bbox):
-                geomline2 = line.geometry()
-                if geomline.equals(geomline2): vias.deleteFeature(line.id())
-                    
+            #3ª parte
+                    if self.anglesBetweenLines(feature, line, ptFin) < (180 + angle) and self.anglesBetweenLines(feature, line, ptFin) > (180 - angle):
+                        #feedback.pushInfo(f'As linhas {feature["nome"]} e {line["nome"]} podem se mesclar.')
+                        feicao = QgsFeature()
+                        new_line = feature.geometry().combine(line.geometry())
+                        feicao.setGeometry(new_line)
+                        feicao.setAttributes(line.attributes())
+                        vias.dataProvider().addFeatures([feicao])
+                        vias.deleteFeature(line.id())
+                        vias.deleteFeature(feature.id())
+                        vias.updateExtents()
+                        
+        #for line in lineTouched:
+        #    feicao = QgsFeature()
+        #    feicao.setGeometry(line.geometry())
+        #    pointsflag.dataProvider().addFeatures([line])
+        #    pointsflag.updateExtents()
+        #QgsProject.instance().addMapLayer(pointsflag)
+        
         return {self.OUTPUT: vias}
 
+    def linesTouched(self, layer, feature, point):
+        lines = []
+        AreaOfInterest = feature.geometry().boundingBox()
+        request = QgsFeatureRequest().setFilterRect(AreaOfInterest)
+        for feat in layer.getFeatures(request):
+            if feat.geometry().intersects(point):
+                if str(feature.geometry())==str(feat.geometry()):
+                    continue
+                lines.append(feat)
+        return lines
+    
+    def anglesBetweenLines(self, line1, line2, point):
+        pointB = QgsPointXY(point.asPoint())
+        pointA = self.adjacentPoint(line1, pointB)
+        pointC = self.adjacentPoint(line2, pointB)
+        angleRad = QgsGeometryUtils().angleBetweenThreePoints(pointA.x(), pointA.y(), pointB.x(), pointB.y(), pointC.x(), pointC.y())
+        angle = math.degrees(angleRad)
+
+        return abs(angle)
+    
+    def adjacentPoint(self, line, point):
+        vertexPoint = line.geometry().closestVertexWithContext(point)[1]
+        adjpoints = line.geometry().adjacentVertices(vertexPoint)
+        adjptvertex = adjpoints[0]
+        if adjptvertex<0:
+            adjptvertex = adjpoints[1]
+        adjpt = line.geometry().vertexAt(adjptvertex)
+        return QgsPointXY(adjpt)
+    
     def name(self):
         """
         Returns the algorithm name, used for identifying the algorithm. This
