@@ -89,7 +89,7 @@ class Projeto9Solucao(QgsProcessingAlgorithm):
                 parentParameterName = 'VIAS',
                 optional = False,
                 minValue=0,
-                defaultValue=0.005)
+                defaultValue=10)
             )
         
         self.addParameter(
@@ -97,7 +97,8 @@ class Projeto9Solucao(QgsProcessingAlgorithm):
                 'INPUT_ANGLE',
                 self.tr('Insira o desvio máximo (em graus) para detectar continuidade'), 
                 type=QgsProcessingParameterNumber.Double, 
-                minValue=0)
+                minValue=0,
+                defaultValue=75)
             )
         
         self.addParameter(
